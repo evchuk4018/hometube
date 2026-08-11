@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { thumbnailUrlForVideo } from "@/domain/thumbnails";
 import type { Video } from "@/domain/types";
 import { appPath } from "../app-path";
 import { StatusPill } from "./status-pill";
@@ -18,22 +19,13 @@ function formatDate(value?: string | null): string {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
 }
 
-function safeThumbnail(url?: string | null): boolean {
-  if (!url) return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "https:" && ["i.ytimg.com", "yt3.ggpht.com", "yt3.googleusercontent.com"].includes(parsed.hostname);
-  } catch {
-    return false;
-  }
-}
-
 export function VideoCard({ video, reason, onChanged }: { video: Video; reason?: string; onChanged?: (video: Video) => void }) {
   const [current, setCurrent] = useState(video);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const lastProgress = useRef(0);
   const downloaded = current.media?.state === "ready";
+  const thumbnailUrl = thumbnailUrlForVideo(current.thumbnailUrl, current.providerId);
   const mediaState = current.media?.state;
   const mediaLabel = mediaState === "ready" ? `Downloaded · ${current.media?.height}p` : mediaState === "queued" ? "Queued" : mediaState === "downloading" ? "Downloading" : mediaState === "failed" ? "Download failed" : mediaState === "unavailable" ? "Unavailable" : "Not downloaded";
 
@@ -80,12 +72,12 @@ export function VideoCard({ video, reason, onChanged }: { video: Video; reason?:
             controls
             preload="metadata"
             src={appPath(`/api/videos/${current.id}/media`)}
-            poster={safeThumbnail(current.thumbnailUrl) ? current.thumbnailUrl ?? undefined : undefined}
+            poster={thumbnailUrl ? appPath(`/api/videos/${current.id}/thumbnail`) : undefined}
             onLoadedMetadata={(event) => { event.currentTarget.currentTime = current.progressSeconds; }}
             onTimeUpdate={(event) => { const player = event.currentTarget; void saveProgress(player.currentTime, player.duration || current.durationSeconds); }}
           />
-        ) : safeThumbnail(current.thumbnailUrl) ? (
-          <Image src={downloaded ? appPath(`/api/videos/${current.id}/thumbnail`) : current.thumbnailUrl!} alt="" fill sizes="(max-width: 700px) 100vw, 33vw" className="video-thumb" />
+        ) : thumbnailUrl ? (
+          <Image src={thumbnailUrl} alt="" fill sizes="(max-width: 700px) 100vw, 33vw" className="video-thumb" />
         ) : (
           <div className="video-thumb placeholder-thumb"><span>▶</span></div>
         )}
