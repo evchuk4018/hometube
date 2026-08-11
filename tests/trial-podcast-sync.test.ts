@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isPodcastMediaProtected, podcastSections, shouldDeleteCompletedPodcastMedia } from "@/domain/podcast";
+import { isPodcastMediaProtected, podcastSections, shouldAutomaticallyDownloadPodcastEpisode, shouldDeleteCompletedPodcastMedia } from "@/domain/podcast";
 import { buildTrialPool, shouldPruneTrial, shouldPromoteTrial } from "@/domain/trial";
 import { deduplicateProviderVideos, mergeVideoMetadata, stableVideoIdentity } from "@/domain/sync";
 import type { ProviderVideo, Video } from "@/domain/types";
@@ -23,6 +23,15 @@ describe("trials, podcasts, and synchronization", () => {
     expect(podcastSections([{ watchState: "unwatched" }, { watchState: "in_progress" }, { watchState: "watched" }])).toEqual({ unwatched: [{ watchState: "unwatched" }], inProgress: [{ watchState: "in_progress" }], completed: [{ watchState: "watched" }] });
   });
 
+  it("only automatically downloads podcast episodes published after activation", () => {
+    const startedAt = "2026-08-01T00:00:00.000Z";
+    expect(shouldAutomaticallyDownloadPodcastEpisode("2026-07-31T23:59:59.000Z", startedAt)).toBe(false);
+    expect(shouldAutomaticallyDownloadPodcastEpisode("2026-08-01T00:00:00.000Z", startedAt)).toBe(false);
+    expect(shouldAutomaticallyDownloadPodcastEpisode("2026-08-02T00:00:00.000Z", startedAt)).toBe(true);
+    expect(shouldAutomaticallyDownloadPodcastEpisode(null, startedAt)).toBe(false);
+    expect(shouldAutomaticallyDownloadPodcastEpisode("2026-08-02T00:00:00.000Z", null)).toBe(false);
+  });
+
   it("preserves logical identity and watch/media state when metadata is rediscovered", () => {
     const existing: Video = {
       id: stableVideoIdentity("same"), providerId: "same", channelId: "channel", channelName: "Channel", title: "Old title", durationSeconds: 100,
@@ -36,4 +45,3 @@ describe("trials, podcasts, and synchronization", () => {
     expect(deduplicateProviderVideos([...providerVideos, providerVideos[0]])).toHaveLength(12);
   });
 });
-

@@ -4,7 +4,7 @@ import { mapChannelRow } from "../row-mappers";
 
 const channelColumns = `
   id, provider_id, name, handle, description, thumbnail_url, source,
-  is_subscribed, is_retained, is_pruned, is_podcast, is_pinned,
+  is_subscribed, is_retained, is_pruned, is_podcast, podcast_started_at, is_pinned,
   trial_started_at, trial_ends_at, videos_presented, videos_opened,
   videos_watched, average_percentage_watched, recent_engagement,
   last_interaction_at, rejection_count, last_rejection_reason,
@@ -99,6 +99,7 @@ export async function setPodcastMode(id: string, podcast: boolean): Promise<Chan
      SET source = CASE WHEN $2 THEN 'podcast' ELSE COALESCE(source_before_podcast, 'user_added') END,
          source_before_podcast = CASE WHEN $2 THEN source ELSE source_before_podcast END,
          is_podcast = $2,
+         podcast_started_at = CASE WHEN $2 THEN COALESCE(podcast_started_at, now()) ELSE NULL END,
          is_pruned = CASE WHEN $2 THEN false ELSE is_pruned END,
          updated_at = now()
      WHERE id = $1

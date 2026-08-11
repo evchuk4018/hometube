@@ -51,6 +51,20 @@ export async function deleteMediaRecord(videoId: string): Promise<MediaFile | nu
   return result.rows[0] ? mapMediaRow(result.rows[0]) : null;
 }
 
+export async function deleteReadyMediaForChannel(channelId: string): Promise<MediaFile[]> {
+  const result = await query<Record<string, unknown>>(
+    `UPDATE media_files m
+     SET state = 'deleted', updated_at = now()
+     FROM videos v
+     WHERE m.video_id = v.id AND v.channel_id = $1 AND m.state = 'ready'
+     RETURNING m.id AS media_id, m.video_id, m.path AS media_path, m.bytes AS media_bytes,
+       m.height AS media_height, m.mime_type AS media_mime_type, m.state AS media_state,
+       m.downloaded_at AS media_downloaded_at, m.last_accessed_at AS media_last_accessed_at`,
+    [channelId]
+  );
+  return result.rows.map((row) => mapMediaRow(row)).filter((media): media is MediaFile => media !== null);
+}
+
 export async function currentMediaBytes(): Promise<number> {
   const result = await query<{ total: string }>(`SELECT COALESCE(SUM(bytes), 0)::text AS total FROM media_files WHERE state = 'ready'`);
   return Number(result.rows[0]?.total ?? 0);

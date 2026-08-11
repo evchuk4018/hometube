@@ -1,6 +1,9 @@
 import { appConfig } from "../config";
-import { createChannel, findChannelById, removeChannelFromRecommendations, setChannelPinned, setChannelPruned, setChannelRetention, setPodcastMode } from "../repositories/channel-repository";
+import { createChannel, findChannelById, removeChannelFromRecommendations, setChannelPinned, setChannelPruned, setChannelRetention, setPodcastMode as setPodcastModeRecord } from "../repositories/channel-repository";
+import { cancelQueuedPodcastBacklog } from "../repositories/download-repository";
+import { deleteReadyMediaForChannel } from "../repositories/media-repository";
 import { createChannelSchema } from "../validation";
+import { removePhysicalMedia } from "./media-service";
 
 export async function addChannel(input: unknown) {
   const parsed = createChannelSchema.parse(input);
@@ -14,8 +17,16 @@ export async function performChannelAction(channelId: string, action: "retain" |
   if (action === "unprune") return setChannelPruned(channelId, false);
   if (action === "remove") return removeChannelFromRecommendations(channelId, false);
   if (action === "restore") return removeChannelFromRecommendations(channelId, true);
-  if (action === "podcast") return setPodcastMode(channelId, true);
-  return setPodcastMode(channelId, false);
+  if (action === "podcast") return enablePodcastMode(channelId);
+  return setPodcastModeRecord(channelId, false);
+}
+
+async function enablePodcastMode(channelId: string) {
+  const channel = await setPodcastModeRecord(channelId, true);
+  if (!channel) return null;
+  if (channel.podcastStartedAt) await cancelQueuedPodcastBacklog(channel.id, channel.podcastStartedAt);
+  for (const media of await deleteReadyMediaForChannel(channel.id)) await removePhysicalMedia(media.path);
+  return channel;
 }
 
 export async function pinChannel(channelId: string, pinned: boolean) {

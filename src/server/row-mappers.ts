@@ -26,6 +26,7 @@ export function mapChannelRow(row: Record<string, unknown>): Channel {
     isRetained: bool(row.is_retained),
     isPruned: bool(row.is_pruned),
     isPodcast: bool(row.is_podcast),
+    podcastStartedAt: row.podcast_started_at ? new Date(String(row.podcast_started_at)).toISOString() : null,
     isPinned: bool(row.is_pinned),
     trialStartedAt: row.trial_started_at ? new Date(String(row.trial_started_at)).toISOString() : null,
     trialEndsAt: row.trial_ends_at ? new Date(String(row.trial_ends_at)).toISOString() : null,
@@ -79,4 +80,3 @@ export function mapVideoRow(row: Record<string, unknown>): Video {
     media: mapMediaRow({ ...row, video_id: row.video_id ?? row.id })
   };
 }
-

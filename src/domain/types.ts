@@ -19,6 +19,7 @@ export type Channel = {
   isRetained: boolean;
   isPruned: boolean;
   isPodcast: boolean;
+  podcastStartedAt?: string | null;
   isPinned: boolean;
   trialStartedAt?: string | null;
   trialEndsAt?: string | null;

@@ -1,5 +1,13 @@
 import type { WatchState } from "./types";
 
+export function shouldAutomaticallyDownloadPodcastEpisode(publishedAt?: string | null, podcastStartedAt?: string | null): boolean {
+  if (!publishedAt || !podcastStartedAt) return false;
+  const publishedTime = Date.parse(publishedAt);
+  const startedTime = Date.parse(podcastStartedAt);
+  if (!Number.isFinite(publishedTime) || !Number.isFinite(startedTime)) return false;
+  return publishedTime > startedTime;
+}
+
 export function isPodcastMediaProtected(watchState: WatchState): boolean {
   return watchState === "unwatched" || watchState === "in_progress";
 }

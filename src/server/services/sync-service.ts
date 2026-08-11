@@ -8,13 +8,14 @@ import { shouldPruneTrial, shouldPromoteTrial } from "@/domain/trial";
 import { listFeedVideoRows } from "../repositories/video-repository";
 import { mapVideoRow } from "../row-mappers";
 import { rankHomeVideos, scoreChannel } from "@/domain/recommendation";
+import { shouldAutomaticallyDownloadPodcastEpisode } from "@/domain/podcast";
 
-export async function syncChannel(channel: { id: string; providerId: string; isPodcast: boolean }, provider: VideoProvider): Promise<number> {
+export async function syncChannel(channel: { id: string; providerId: string; isPodcast: boolean; podcastStartedAt?: string | null }, provider: VideoProvider): Promise<number> {
   const providerVideos = await provider.listChannelVideos(channel.providerId);
   let added = 0;
   for (const providerVideo of providerVideos) {
     const video = await upsertVideo(channel.id, providerVideo);
-    if (channel.isPodcast && video.media?.state !== "ready" && video.media?.state !== "queued" && video.media?.state !== "downloading") await enqueueDownload(video.id, "podcast");
+    if (channel.isPodcast && shouldAutomaticallyDownloadPodcastEpisode(video.publishedAt, channel.podcastStartedAt) && video.media?.state !== "ready" && video.media?.state !== "queued" && video.media?.state !== "downloading") await enqueueDownload(video.id, "podcast");
     added += 1;
   }
   return added;
