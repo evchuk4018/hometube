@@ -28,17 +28,25 @@ export type FeedVideoRow = Record<string, unknown> & {
 
 export async function listFeedVideoRows(limit = 500): Promise<FeedVideoRow[]> {
   const result = await query<FeedVideoRow>(
-    `SELECT ${videoSelect}, c.videos_presented AS channel_videos_presented,
-      c.videos_opened AS channel_videos_opened, c.videos_watched AS channel_videos_watched,
-      c.average_percentage_watched AS channel_average_percentage_watched,
-      c.recent_engagement AS channel_recent_engagement,
-      c.last_interaction_at AS channel_last_interaction_at,
-      c.is_retained AS channel_is_retained, c.is_pinned AS channel_is_pinned,
-      c.is_pruned AS channel_is_pruned, c.source AS channel_source
-     FROM videos v JOIN channels c ON c.id = v.channel_id
-     LEFT JOIN media_files m ON m.video_id = v.id
-     WHERE v.is_ignored = false AND c.is_pruned = false
-     ORDER BY v.published_at DESC NULLS LAST LIMIT $1`,
+    `WITH feed_candidates AS (
+       SELECT ${videoSelect}, c.videos_presented AS channel_videos_presented,
+         c.videos_opened AS channel_videos_opened, c.videos_watched AS channel_videos_watched,
+         c.average_percentage_watched AS channel_average_percentage_watched,
+         c.recent_engagement AS channel_recent_engagement,
+         c.last_interaction_at AS channel_last_interaction_at,
+         c.is_retained AS channel_is_retained, c.is_pinned AS channel_is_pinned,
+         c.is_pruned AS channel_is_pruned, c.source AS channel_source,
+         ROW_NUMBER() OVER (
+           PARTITION BY v.channel_id
+           ORDER BY v.published_at DESC NULLS LAST, v.view_count DESC NULLS LAST, v.id
+         ) AS channel_position
+       FROM videos v JOIN channels c ON c.id = v.channel_id
+       LEFT JOIN media_files m ON m.video_id = v.id
+       WHERE v.is_ignored = false AND c.is_pruned = false
+     )
+     SELECT * FROM feed_candidates
+     ORDER BY channel_position, published_at DESC NULLS LAST, view_count DESC NULLS LAST, video_id
+     LIMIT $1`,
     [limit]
   );
   return result.rows;
