@@ -5,7 +5,7 @@ import { appConfig } from "../config";
 import { findVideoById } from "../repositories/video-repository";
 import { currentMediaBytes, listEvictionCandidates, listCompletedPodcastMedia, markMediaState, deleteMediaRecord } from "../repositories/media-repository";
 import { enqueueDownload, claimNextDownload, finishDownload, type DownloadJob } from "../repositories/download-repository";
-import { ensureMediaRoot, removePhysicalMedia } from "./media-service";
+import { ensureMediaRoot, expectedThumbnailPath, removeLocalVideoAssets, removePhysicalMedia } from "./media-service";
 import type { VideoProvider } from "../providers/video-provider";
 
 export async function requestDownload(videoId: string, kind: DownloadJob["kind"] = "manual"): Promise<void> {
@@ -23,7 +23,7 @@ async function evictForIncoming(incomingBytes: number): Promise<void> {
     const media = candidates.find((entry) => entry.mediaId === candidate.mediaId);
     if (!media) continue;
     const row = await deleteMediaRecord(media.videoId);
-    if (row) await removePhysicalMedia(row.path);
+    if (row) await removeLocalVideoAssets(media.videoId, row.path);
   }
 }
 
@@ -44,6 +44,13 @@ export async function processOneDownload(provider: VideoProvider): Promise<boole
     await evictForIncoming(result.bytes);
     const finalPath = path.join(appConfig.mediaRoot, `${video.id}.mp4`);
     await fs.rename(result.path, finalPath);
+    if (video.thumbnailUrl) {
+      try {
+        await provider.downloadThumbnail(video.thumbnailUrl, expectedThumbnailPath(video.id));
+      } catch (error) {
+        console.warn(`Could not cache thumbnail for ${video.id}:`, error);
+      }
+    }
     await markMediaState(video.id, "ready", { path: finalPath, bytes: result.bytes, height: result.height, mimeType: result.mimeType });
     await finishDownload(job.id, "ready");
   } catch (error) {
@@ -59,7 +66,7 @@ export async function cleanupCache(): Promise<number> {
   for (const candidate of await listCompletedPodcastMedia()) {
     const row = await deleteMediaRecord(candidate.videoId);
     if (row) {
-      await removePhysicalMedia(row.path);
+      await removeLocalVideoAssets(candidate.videoId, row.path);
       removed += 1;
     }
   }
@@ -69,7 +76,7 @@ export async function cleanupCache(): Promise<number> {
   const plan = planEvictions(current, 0, candidates, appConfig.mediaTargetBytes);
   for (const candidate of plan) {
     const row = await deleteMediaRecord(candidate.videoId);
-    if (row) await removePhysicalMedia(row.path);
+    if (row) await removeLocalVideoAssets(candidate.videoId, row.path);
   }
   return removed + plan.length;
 }

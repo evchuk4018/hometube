@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { appConfig } from "../config";
-import { mediaPathForVideo } from "@/domain/media-policy";
+import { mediaPathForVideo, thumbnailPathForVideo } from "@/domain/media-policy";
 
 function isWithinMediaRoot(filePath: string): boolean {
   const root = path.resolve(appConfig.mediaRoot);
@@ -26,3 +26,11 @@ export function expectedMediaPath(videoId: string): string {
   return mediaPathForVideo(appConfig.mediaRoot, videoId);
 }
 
+export function expectedThumbnailPath(videoId: string): string {
+  return thumbnailPathForVideo(appConfig.mediaRoot, videoId);
+}
+
+export async function removeLocalVideoAssets(videoId: string, mediaPath: string): Promise<void> {
+  await removePhysicalMedia(mediaPath);
+  await removePhysicalMedia(expectedThumbnailPath(videoId));
+}

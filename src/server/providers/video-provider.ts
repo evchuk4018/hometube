@@ -10,5 +10,5 @@ export type DownloadResult = {
 export interface VideoProvider {
   listChannelVideos(providerChannelId: string): Promise<ProviderVideo[]>;
   downloadVideo(providerVideoId: string, outputPath: string): Promise<DownloadResult>;
+  downloadThumbnail(thumbnailUrl: string, outputPath: string): Promise<void>;
 }
-

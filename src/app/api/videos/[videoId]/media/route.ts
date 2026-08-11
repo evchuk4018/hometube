@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import { Readable } from "node:stream";
 import { requirePrivateAccess } from "@/server/auth";
 import { findReadyMedia, deleteMediaRecord, markMediaAccessed } from "@/server/repositories/media-repository";
-import { removePhysicalMedia } from "@/server/services/media-service";
+import { removeLocalVideoAssets } from "@/server/services/media-service";
 
 export const dynamic = "force-dynamic";
 
@@ -52,8 +52,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ v
   const { videoId } = await params;
   const media = await findReadyMedia(videoId);
   if (!media) return Response.json({ deleted: false, reason: "not_downloaded" });
-  await removePhysicalMedia(media.path);
+  await removeLocalVideoAssets(videoId, media.path);
   await deleteMediaRecord(videoId);
   return Response.json({ deleted: true, videoId });
 }
-

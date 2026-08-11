@@ -94,6 +94,11 @@ export function mediaPathForVideo(mediaRoot: string, videoId: string): string {
   return `${mediaRoot.replace(/[\\/]$/, "")}/${videoId}.mp4`;
 }
 
+export function thumbnailPathForVideo(mediaRoot: string, videoId: string): string {
+  if (!/^[a-zA-Z0-9_-]+$/.test(videoId)) throw new MediaPolicyError("Invalid video identifier.");
+  return `${mediaRoot.replace(/[\\/]$/, "")}/${videoId}.jpg`;
+}
+
 export function buildYtDlpArguments(videoUrl: string, outputTemplate: string): string[] {
   return [
     "--no-playlist",

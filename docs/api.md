@@ -16,9 +16,11 @@ All API routes are private when `APP_ACCESS_TOKEN` is set. Send the value as
 | PATCH | `/api/videos/:videoId/progress` | Persist playback position and watch percentage |
 | POST | `/api/videos/:videoId/download` | Queue a manual download |
 | GET/DELETE | `/api/videos/:videoId/media` | Stream or remove the local media file |
+| GET | `/api/videos/:videoId/thumbnail` | Serve the local thumbnail or redirect to its provider URL |
 
 All download paths converge on the worker's `YTDLP_FORMAT_SELECTOR`, which
 rejects a result above 720p or above the immutable 128 GiB per-file ceiling.
 The media DELETE operation changes only the physical media record; the logical
-video, thumbnail, watch state, and recommendation history remain intact.
-
+video, thumbnail URL, watch state, and recommendation history remain intact.
+When local media is removed, its cached thumbnail is removed too; the thumbnail
+endpoint then falls back to the provider URL.

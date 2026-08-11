@@ -5,7 +5,7 @@ import { deleteMediaRecord, findReadyMedia } from "../repositories/media-reposit
 import { enqueueDownload } from "../repositories/download-repository";
 import { findVideoById, updateVideoPinned, updateVideoProgress } from "../repositories/video-repository";
 import { recordWatchEvent } from "../repositories/watch-event-repository";
-import { removePhysicalMedia } from "./media-service";
+import { removeLocalVideoAssets } from "./media-service";
 import type { VideoAction } from "../validation";
 
 export async function performVideoAction(videoId: string, action: VideoAction) {
@@ -30,7 +30,7 @@ export async function performVideoAction(videoId: string, action: VideoAction) {
   }
   const media = await findReadyMedia(videoId);
   if (media) {
-    await removePhysicalMedia(media.path);
+    await removeLocalVideoAssets(videoId, media.path);
     await deleteMediaRecord(videoId);
   }
   return findVideoById(videoId);

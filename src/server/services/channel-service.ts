@@ -3,7 +3,7 @@ import { createChannel, findChannelById, removeChannelFromRecommendations, setCh
 import { cancelQueuedPodcastBacklog } from "../repositories/download-repository";
 import { deleteReadyMediaForChannel } from "../repositories/media-repository";
 import { createChannelSchema } from "../validation";
-import { removePhysicalMedia } from "./media-service";
+import { removeLocalVideoAssets } from "./media-service";
 
 export async function addChannel(input: unknown) {
   const parsed = createChannelSchema.parse(input);
@@ -25,7 +25,7 @@ async function enablePodcastMode(channelId: string) {
   const channel = await setPodcastModeRecord(channelId, true);
   if (!channel) return null;
   if (channel.podcastStartedAt) await cancelQueuedPodcastBacklog(channel.id, channel.podcastStartedAt);
-  for (const media of await deleteReadyMediaForChannel(channel.id)) await removePhysicalMedia(media.path);
+  for (const media of await deleteReadyMediaForChannel(channel.id)) await removeLocalVideoAssets(media.videoId, media.path);
   return channel;
 }
 

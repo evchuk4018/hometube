@@ -88,6 +88,26 @@ export class YtDlpProvider implements VideoProvider {
     return { path: outputPath, bytes: stats.size, height, mimeType: "video/mp4" };
   }
 
+  async downloadThumbnail(thumbnailUrl: string, outputPath: string): Promise<void> {
+    const parsed = new URL(thumbnailUrl);
+    if (parsed.protocol !== "https:" || !["i.ytimg.com", "yt3.ggpht.com", "yt3.googleusercontent.com"].includes(parsed.hostname)) {
+      throw new Error("Thumbnail URL is not an approved YouTube image URL.");
+    }
+    const response = await fetch(parsed);
+    if (!response.ok || !response.body) throw new Error(`Thumbnail request failed with status ${response.status}.`);
+    const file = await fs.open(outputPath, "w");
+    try {
+      const reader = response.body.getReader();
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        await file.write(chunk.value);
+      }
+    } finally {
+      await file.close();
+    }
+  }
+
   private async probeHeight(filePath: string): Promise<number> {
     const { stdout } = await run(process.env.FFPROBE_BINARY ?? "ffprobe", [
       "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=height", "-of", "json", filePath

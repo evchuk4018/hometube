@@ -85,7 +85,7 @@ export function VideoCard({ video, reason, onChanged }: { video: Video; reason?:
             onTimeUpdate={(event) => { const player = event.currentTarget; void saveProgress(player.currentTime, player.duration || current.durationSeconds); }}
           />
         ) : safeThumbnail(current.thumbnailUrl) ? (
-          <Image src={current.thumbnailUrl!} alt="" fill sizes="(max-width: 700px) 100vw, 33vw" className="video-thumb" />
+          <Image src={downloaded ? appPath(`/api/videos/${current.id}/thumbnail`) : current.thumbnailUrl!} alt="" fill sizes="(max-width: 700px) 100vw, 33vw" className="video-thumb" />
         ) : (
           <div className="video-thumb placeholder-thumb"><span>▶</span></div>
         )}
