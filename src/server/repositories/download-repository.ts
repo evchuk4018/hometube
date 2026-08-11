@@ -43,6 +43,26 @@ export async function cancelQueuedPodcastBacklog(channelId: string, podcastStart
   return result.rowCount ?? 0;
 }
 
+export async function cancelQueuedPodcastDownloads(channelId: string): Promise<number> {
+  const result = await query(
+    `WITH cancelled AS (
+       DELETE FROM download_jobs j
+       USING videos v
+       WHERE j.video_id = v.id
+         AND v.channel_id = $1
+         AND j.kind = 'podcast'
+         AND j.status = 'queued'
+       RETURNING j.video_id
+     )
+     UPDATE media_files m
+     SET state = 'deleted', path = '', error_message = 'Podcast download cancelled because the channel is no longer a podcast', updated_at = now()
+     FROM cancelled
+     WHERE m.video_id = cancelled.video_id AND m.state = 'queued'`,
+    [channelId]
+  );
+  return result.rowCount ?? 0;
+}
+
 export async function claimNextDownload(): Promise<DownloadJob | null> {
   const result = await query<Record<string, unknown>>(
     `WITH next_job AS (
