@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title>HomeTube</title>
+  <rect width="512" height="512" rx="112" fill="#071116"/>
+  <path d="M114 156h284c17 0 31 14 31 31v138c0 17-14 31-31 31H114c-17 0-31-14-31-31V187c0-17 14-31 31-31Z" fill="#d5f28a"/>
+  <path d="m218 203 111 53-111 53z" fill="#071116"/>
+  <path d="M126 378h260" stroke="#a5c66a" stroke-width="18" stroke-linecap="round"/>
+</svg>

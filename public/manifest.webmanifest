@@ -1,0 +1,13 @@
+{
+  "name": "HomeTube",
+  "short_name": "HomeTube",
+  "description": "A private, local-first video library and podcast player.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#071116",
+  "theme_color": "#d5f28a",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

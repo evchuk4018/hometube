@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hometube}
+      POSTGRES_USER: ${POSTGRES_USER:-hometube}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the deployment environment}
+    volumes:
+      - ${HOMETUBE_POSTGRES_DATA:-/srv/storage/hometube-postgres}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hometube}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}/hometube
+      MEDIA_ROOT: /srv/storage/hometube-media
+      MEDIA_TARGET_BYTES: ${MEDIA_TARGET_BYTES:-128849018880}
+      APP_ACCESS_TOKEN: ${APP_ACCESS_TOKEN:-}
+      COMPLETION_THRESHOLD: ${COMPLETION_THRESHOLD:-0.9}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENDATALOADER_URL: http://opendataloader-hybrid:5002
+    volumes:
+      - ${HOMETUBE_MEDIA_ROOT:-/srv/storage/hometube-media}:/srv/storage/hometube-media
+    ports:
+      - "127.0.0.1:${HOMETUBE_WEB_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    command: ["npm", "run", "worker"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hometube}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}/hometube
+      MEDIA_ROOT: /srv/storage/hometube-media
+      MEDIA_TARGET_BYTES: ${MEDIA_TARGET_BYTES:-128849018880}
+      COMPLETION_THRESHOLD: ${COMPLETION_THRESHOLD:-0.9}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      YTDLP_BINARY: yt-dlp
+      OPENDATALOADER_URL: http://opendataloader-hybrid:5002
+    volumes:
+      - ${HOMETUBE_MEDIA_ROOT:-/srv/storage/hometube-media}:/srv/storage/hometube-media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opendataloader-hybrid:
+        condition: service_started
+
+  opendataloader-hybrid:
+    image: ${OPENDATALOADER_IMAGE:-opendataloader-hybrid:latest}
+    restart: unless-stopped
+    environment:
+      CUDA_VISIBLE_DEVICES: ""
+      OMP_NUM_THREADS: "2"
+    cpus: "2.0"
+    mem_limit: 3g
+    volumes:
+      - wowzerbowser-opendataloader-cache:/root/.cache/opendataloader
+    # Intentionally private: web and worker reach it over the Compose network.
+
+  discord:
+    profiles: ["discord"]
+    image: ${DISCORD_IMAGE:-alpine:3.20}
+    command: ["sh", "-c", "echo Discord profile is optional; configure a real image before enabling it && sleep infinity"]
+
+volumes:
+  wowzerbowser-opendataloader-cache:
+    name: wowzerbowser-opendataloader-cache
+

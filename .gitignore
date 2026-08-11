@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+coverage/
+.env
+.env.local
+*.log
+media/
+dist/
+playwright-report/
+test-results/
+
