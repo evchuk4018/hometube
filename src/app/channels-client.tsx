@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Channel } from "@/domain/types";
 import { appPath } from "./app-path";
 import { StatusPill } from "./components/status-pill";
 
-export function ChannelsClient({ initialChannels }: { initialChannels: Channel[] }) {
+export function ChannelsClient({ initialChannels, initialQuery = "" }: { initialChannels: Channel[]; initialQuery?: string }) {
   const [channels, setChannels] = useState(initialChannels);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [providerId, setProviderId] = useState("");
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
+  useEffect(() => setQuery(initialQuery), [initialQuery]);
   const visible = useMemo(
     () => channels.filter((channel) => (channel.name + " " + channel.providerId).toLowerCase().includes(query.toLowerCase())),
     [channels, query]
@@ -58,7 +59,7 @@ export function ChannelsClient({ initialChannels }: { initialChannels: Channel[]
         <div>
           <p className="kicker">The catalog</p>
           <h1>Channels</h1>
-          <p className="lede">Every known source lives here: subscriptions, seeds, trials, discoveries, and podcasts. Browse metadata without filling the cache.</p>
+          <p className="lede">Search the channels you want to watch, add a new YouTube handle, and keep the sources that belong in your Home feed.</p>
         </div>
         <div className="catalog-count"><strong>{channels.length}</strong><span>known channels</span></div>
       </section>
@@ -66,7 +67,7 @@ export function ChannelsClient({ initialChannels }: { initialChannels: Channel[]
         <div>
           <p className="kicker">Bring something in</p>
           <h2>Add a channel</h2>
-          <p>Use a YouTube channel ID or @handle. Downloads stay opt-in unless you turn it into a podcast.</p>
+          <p>Use a YouTube channel ID or @handle when a source is not in the catalog yet. Downloads stay opt-in unless you turn it into a podcast.</p>
         </div>
         <form className="inline-form" onSubmit={addChannel}>
           <label><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} required placeholder="Channel name" /></label>
@@ -76,6 +77,7 @@ export function ChannelsClient({ initialChannels }: { initialChannels: Channel[]
       </section>
       <div className="toolbar">
         <label className="search-field"><span aria-hidden="true">⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels" aria-label="Search channels" /></label>
+        {query ? <button className="button button-quiet clear-search" type="button" onClick={() => setQuery("")}>Clear</button> : null}
         {message ? <span className="action-message">{message}</span> : null}
       </div>
       <section className="channel-grid">
@@ -98,7 +100,7 @@ export function ChannelsClient({ initialChannels }: { initialChannels: Channel[]
               <Link className="button button-quiet" href={appPath("/channels/" + channel.id)}>Browse catalog</Link>
               <button className="button button-quiet" type="button" onClick={() => void channelAction(channel, channel.isPinned ? "unpin" : "pin")}>{channel.isPinned ? "Unpin" : "Pin"}</button>
               <button className="button button-quiet" type="button" onClick={() => void channelAction(channel, channel.isPodcast ? "normal" : "podcast")}>{channel.isPodcast ? "Make normal" : "Make podcast"}</button>
-              <button className="button button-quiet" type="button" onClick={() => void channelAction(channel, channel.isRetained ? "unretain" : "retain")}>{channel.isRetained ? "Release" : "Retain"}</button>
+              <button className="button button-quiet" type="button" onClick={() => void channelAction(channel, channel.isRetained ? "unretain" : "retain")}>{channel.isRetained ? "Release from feed" : "Add to feed"}</button>
               <button className="button button-quiet" type="button" onClick={() => void channelAction(channel, channel.isPruned ? "restore" : "remove")}>{channel.isPruned ? "Restore" : "Remove from feed"}</button>
             </div>
           </article>
