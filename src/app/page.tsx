@@ -1,10 +1,9 @@
 import { HomeClient } from "./home-client";
-import { getHomeData } from "@/server/services/read-service";
+import { getDownloadsData, getHomeData } from "@/server/services/read-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const data = await getHomeData();
-  return <HomeClient initialVideos={data.videos} generatedAt={data.generatedAt} />;
+  const [data, downloads] = await Promise.all([getHomeData(), getDownloadsData()]);
+  return <HomeClient initialVideos={data.videos} initialDownloads={downloads} generatedAt={data.generatedAt} />;
 }
-

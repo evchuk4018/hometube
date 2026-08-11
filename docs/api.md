@@ -7,6 +7,7 @@ All API routes are private when `APP_ACCESS_TOKEN` is set. Send the value as
 | --- | --- | --- |
 | GET | `/api/health` | Health and database status |
 | GET | `/api/feed` | Current Home recommendations |
+| GET | `/api/downloads` | All queued, active, completed, and failed downloads |
 | GET/POST | `/api/channels` | Browse or add channels |
 | GET | `/api/channels/:channelId` | Channel metadata catalog |
 | POST | `/api/channels/:channelId/actions` | Retain, prune, pin, or change podcast mode |

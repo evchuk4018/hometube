@@ -4,7 +4,7 @@ import { rankHomeVideos, scoreChannel } from "@/domain/recommendation";
 import { appConfig, hasDatabase } from "../config";
 import { mapVideoRow } from "../row-mappers";
 import { listChannels, findChannelById, listPodcastChannels, recordChannelPresentation } from "../repositories/channel-repository";
-import { listFeedVideoRows, listPodcastEpisodes, listVideosByChannel } from "../repositories/video-repository";
+import { listDownloadVideos, listFeedVideoRows, listPodcastEpisodes, listVideosByChannel } from "../repositories/video-repository";
 import { replaceActiveRecommendations } from "../repositories/recommendation-repository";
 
 function demoChannel(id: string, name: string, source: Channel["source"], podcast = false): Channel {
@@ -122,6 +122,10 @@ export async function getHomeData(): Promise<{ videos: FeedVideo[]; generatedAt:
 
 export async function getChannelsData(): Promise<Channel[]> {
   return readOrDemo(listChannels, () => demoData().channels);
+}
+
+export async function getDownloadsData(): Promise<Video[]> {
+  return readOrDemo(listDownloadVideos, () => []);
 }
 
 export async function getChannelData(id: string): Promise<{ channel: Channel | null; videos: Video[] }> {

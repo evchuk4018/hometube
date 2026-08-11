@@ -52,6 +52,18 @@ export async function listFeedVideoRows(limit = 500): Promise<FeedVideoRow[]> {
   return result.rows;
 }
 
+export async function listDownloadVideos(): Promise<Video[]> {
+  const result = await query<Record<string, unknown>>(
+    `SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id
+     LEFT JOIN media_files m ON m.video_id = v.id
+     WHERE m.state IN ('queued', 'downloading', 'ready', 'failed', 'unavailable')
+     ORDER BY CASE m.state WHEN 'downloading' THEN 0 WHEN 'queued' THEN 1 WHEN 'failed' THEN 2 WHEN 'unavailable' THEN 3 ELSE 4 END,
+       m.updated_at DESC, v.published_at DESC NULLS LAST, v.id`,
+    []
+  );
+  return result.rows.map(mapVideoRow);
+}
+
 export async function listVideosByChannel(channelId: string, limit = 200): Promise<Video[]> {
   const result = await query<Record<string, unknown>>(
     `SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id
