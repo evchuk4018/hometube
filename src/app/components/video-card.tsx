@@ -7,6 +7,7 @@ import { thumbnailUrlForVideo } from "@/domain/thumbnails";
 import type { Video } from "@/domain/types";
 import { appPath } from "../app-path";
 import { StatusPill } from "./status-pill";
+import { shouldPreloadThumbnail } from "./thumbnail-loading";
 
 function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
@@ -19,13 +20,14 @@ function formatDate(value?: string | null): string {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
 }
 
-export function VideoCard({ video, reason, onChanged }: { video: Video; reason?: string; onChanged?: (video: Video) => void }) {
+export function VideoCard({ video, reason, position, onChanged }: { video: Video; reason?: string; position: number; onChanged?: (video: Video) => void }) {
   const [current, setCurrent] = useState(video);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const lastProgress = useRef(0);
   const downloaded = current.media?.state === "ready";
   const thumbnailUrl = thumbnailUrlForVideo(current.thumbnailUrl, current.providerId);
+  const preloadThumbnail = shouldPreloadThumbnail(position);
   const mediaState = current.media?.state;
   const mediaLabel = mediaState === "ready" ? `Downloaded · ${current.media?.height}p` : mediaState === "queued" ? "Queued" : mediaState === "downloading" ? "Downloading" : mediaState === "failed" ? "Download failed" : mediaState === "unavailable" ? "Unavailable" : "Not downloaded";
 
@@ -77,7 +79,17 @@ export function VideoCard({ video, reason, onChanged }: { video: Video; reason?:
             onTimeUpdate={(event) => { const player = event.currentTarget; void saveProgress(player.currentTime, player.duration || current.durationSeconds); }}
           />
         ) : thumbnailUrl ? (
-          <Image src={thumbnailUrl} alt="" fill sizes="(max-width: 700px) 100vw, 33vw" className="video-thumb" />
+          <Image
+            src={thumbnailUrl}
+            alt=""
+            fill
+            sizes="(max-width: 700px) 100vw, 33vw"
+            className="video-thumb"
+            unoptimized
+            preload={preloadThumbnail}
+            loading={preloadThumbnail ? "eager" : "lazy"}
+            fetchPriority={preloadThumbnail ? "high" : "auto"}
+          />
         ) : (
           <div className="video-thumb placeholder-thumb"><span>▶</span></div>
         )}

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { preconnect } from "react-dom";
 import { appPath } from "./app-path";
 import { BottomNav } from "./components/bottom-nav";
 import { RegisterServiceWorker } from "./register-sw";
@@ -19,6 +20,8 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  preconnect("https://i.ytimg.com");
+
   return (
     <html lang="en">
       <body>

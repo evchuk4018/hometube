@@ -14,7 +14,7 @@ function EpisodeSection({ title, subtitle, videos }: { title: string; subtitle: 
         <span className="section-count">{videos.length}</span>
       </div>
       {videos.length ? (
-        <div className="video-grid">{videos.map((video) => <VideoCard key={video.id} video={video} />)}</div>
+        <div className="video-grid">{videos.map((video, position) => <VideoCard key={video.id} video={video} position={position} />)}</div>
       ) : (
         <div className="empty-state compact"><h3>All clear</h3><p>Nothing in this section.</p></div>
       )}
