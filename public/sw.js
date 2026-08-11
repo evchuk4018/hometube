@@ -1,6 +1,6 @@
 /* global self, caches, URL, fetch, Response */
 
-const CACHE = "hometube-shell-v1";
+const CACHE = "hometube-shell-v2";
 const BASE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
 const appPath = (pathname) => (BASE_PATH + pathname) || "/";
 const SHELL = [appPath("/"), appPath("/channels"), appPath("/podcasts"), appPath("/manifest.webmanifest"), appPath("/icon.svg")];
@@ -11,7 +11,16 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    Promise.all([
+      caches.keys().then((keys) => Promise.all(
+        keys
+          .filter((key) => key.startsWith("hometube-shell-") && key !== CACHE)
+          .map((key) => caches.delete(key))
+      )),
+      self.clients.claim()
+    ])
+  );
 });
 
 self.addEventListener("fetch", (event) => {
