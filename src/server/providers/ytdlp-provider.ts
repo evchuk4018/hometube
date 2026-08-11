@@ -18,15 +18,19 @@ type JsonEntry = {
   webpage_url?: string;
 };
 
-function run(binary: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+function run(binary: string, args: string[], signal?: AbortSignal): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(binary, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
     child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    const cancel = () => child.kill("SIGTERM");
+    signal?.addEventListener("abort", cancel, { once: true });
     child.once("error", reject);
     child.once("close", (code) => {
+      signal?.removeEventListener("abort", cancel);
+      if (signal?.aborted) return reject(new Error("Download cancelled."));
       if (code === 0) resolve({ stdout, stderr });
       else reject(new Error(`${binary} exited with code ${code}: ${stderr.slice(-2000)}`));
     });
@@ -78,10 +82,10 @@ export class YtDlpProvider implements VideoProvider {
     }));
   }
 
-  async downloadVideo(providerVideoId: string, outputPath: string): Promise<DownloadResult> {
+  async downloadVideo(providerVideoId: string, outputPath: string, signal?: AbortSignal): Promise<DownloadResult> {
     const args = buildYtDlpArguments(videoUrl(providerVideoId), outputPath);
     if (appConfig.youtubeCookieFile) args.splice(0, 0, "--cookies", appConfig.youtubeCookieFile);
-    await run(this.binary, args);
+    await run(this.binary, args, signal);
     const stats = await fs.stat(outputPath);
     const height = await this.probeHeight(outputPath);
     validateFormatCandidate({ height, filesize: stats.size });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const actionSchema = z.object({
-  action: z.enum(["watched", "unwatched", "pin", "unpin", "download", "delete-media"])
+  action: z.enum(["watched", "unwatched", "pin", "unpin", "download", "cancel-download", "delete-media"])
 });
 
 export const progressSchema = z.object({

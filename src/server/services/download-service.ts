@@ -4,7 +4,7 @@ import { assertDownloadedMediaPolicy, planEvictions } from "@/domain/media-polic
 import { appConfig } from "../config";
 import { findVideoById } from "../repositories/video-repository";
 import { currentMediaBytes, listEvictionCandidates, listCompletedPodcastMedia, markMediaState, deleteMediaRecord } from "../repositories/media-repository";
-import { enqueueDownload, claimNextDownload, finishDownload, type DownloadJob } from "../repositories/download-repository";
+import { enqueueDownload, claimNextDownload, completeDownload, finishDownload, isDownloadCancelled, cancelDownload as cancelDownloadJob, type DownloadJob } from "../repositories/download-repository";
 import { ensureMediaRoot, expectedThumbnailPath, removeLocalVideoAssets, removePhysicalMedia } from "./media-service";
 import type { VideoProvider } from "../providers/video-provider";
 
@@ -13,6 +13,11 @@ export async function requestDownload(videoId: string, kind: DownloadJob["kind"]
   if (!video) throw new Error("Video not found.");
   if (video.media?.state === "ready") return;
   await enqueueDownload(videoId, kind);
+}
+
+export async function cancelDownload(videoId: string): Promise<void> {
+  const result = await cancelDownloadJob(videoId);
+  if (result.path) await removePhysicalMedia(result.path);
 }
 
 async function evictForIncoming(incomingBytes: number): Promise<void> {
@@ -37,9 +42,14 @@ export async function processOneDownload(provider: VideoProvider): Promise<boole
   }
   await ensureMediaRoot();
   const tempPath = path.join(appConfig.mediaRoot, `.download-${video.id}.part.mp4`);
+  const controller = new AbortController();
+  const cancellationPoll = setInterval(() => {
+    void isDownloadCancelled(job.id).then((cancelled) => { if (cancelled) controller.abort(); });
+  }, 1000);
   try {
     await markMediaState(video.id, "downloading", { path: tempPath });
-    const result = await provider.downloadVideo(video.providerId, tempPath);
+    const result = await provider.downloadVideo(video.providerId, tempPath, controller.signal);
+    if (controller.signal.aborted || await isDownloadCancelled(job.id)) throw new Error("Download cancelled.");
     assertDownloadedMediaPolicy(result.bytes, result.height);
     await evictForIncoming(result.bytes);
     const finalPath = path.join(appConfig.mediaRoot, `${video.id}.mp4`);
@@ -51,12 +61,21 @@ export async function processOneDownload(provider: VideoProvider): Promise<boole
         console.warn(`Could not cache thumbnail for ${video.id}:`, error);
       }
     }
-    await markMediaState(video.id, "ready", { path: finalPath, bytes: result.bytes, height: result.height, mimeType: result.mimeType });
-    await finishDownload(job.id, "ready");
+    const completed = await completeDownload({ jobId: job.id, videoId: video.id, path: finalPath, bytes: result.bytes, height: result.height, mimeType: result.mimeType });
+    if (!completed) {
+      await removePhysicalMedia(finalPath);
+      throw new Error("Download cancelled.");
+    }
   } catch (error) {
     await removePhysicalMedia(tempPath);
-    await markMediaState(video.id, "failed", { error: error instanceof Error ? error.message : "Download failed." });
-    await finishDownload(job.id, "failed", error instanceof Error ? error.message : "Download failed.");
+    if (controller.signal.aborted || await isDownloadCancelled(job.id)) {
+      await markMediaState(video.id, "deleted");
+    } else {
+      await markMediaState(video.id, "failed", { error: error instanceof Error ? error.message : "Download failed." });
+      await finishDownload(job.id, "failed", error instanceof Error ? error.message : "Download failed.");
+    }
+  } finally {
+    clearInterval(cancellationPoll);
   }
   return true;
 }

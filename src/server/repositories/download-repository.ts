@@ -5,9 +5,51 @@ export type DownloadJob = {
   videoId: string;
   providerId: string;
   kind: "auto" | "manual" | "podcast";
-  status: "queued" | "downloading" | "ready" | "failed" | "unavailable";
+  status: "queued" | "downloading" | "ready" | "failed" | "unavailable" | "cancelled";
   attempts: number;
 };
+
+export async function cancelDownload(videoId: string): Promise<{ cancelled: boolean; path: string | null }> {
+  const result = await query<{ path: string | null }>(
+    `WITH cancelled AS (
+       UPDATE download_jobs
+       SET status = 'cancelled', error_message = 'Download cancelled by user', completed_at = now()
+       WHERE video_id = $1 AND status IN ('queued', 'downloading')
+       RETURNING video_id
+     )
+     UPDATE media_files m
+     SET state = 'deleted', updated_at = now()
+     FROM cancelled
+     WHERE m.video_id = cancelled.video_id AND m.state IN ('queued', 'downloading')
+     RETURNING m.path`,
+    [videoId]
+  );
+  return { cancelled: result.rowCount !== 0, path: result.rows[0]?.path ?? null };
+}
+
+export async function isDownloadCancelled(id: string): Promise<boolean> {
+  const result = await query<{ status: string }>(`SELECT status FROM download_jobs WHERE id = $1`, [id]);
+  return result.rows[0]?.status === "cancelled";
+}
+
+export async function completeDownload(input: { jobId: string; videoId: string; path: string; bytes: number; height: number; mimeType: string }): Promise<boolean> {
+  const result = await query(
+    `WITH completed AS (
+       UPDATE download_jobs
+       SET status = 'ready', error_message = NULL, completed_at = now()
+       WHERE id = $1 AND video_id = $2 AND status = 'downloading'
+       RETURNING video_id
+     )
+     UPDATE media_files m
+     SET path = $3, bytes = $4, height = $5, mime_type = $6, state = 'ready',
+       error_message = NULL, downloaded_at = now(), last_accessed_at = now(), updated_at = now()
+     FROM completed
+     WHERE m.video_id = completed.video_id
+     RETURNING m.video_id`,
+    [input.jobId, input.videoId, input.path, input.bytes, input.height, input.mimeType]
+  );
+  return result.rowCount !== 0;
+}
 
 export async function enqueueDownload(videoId: string, kind: DownloadJob["kind"]): Promise<void> {
   await query(
@@ -90,5 +132,5 @@ export async function claimNextDownload(): Promise<DownloadJob | null> {
 }
 
 export async function finishDownload(id: string, status: Extract<DownloadJob["status"], "ready" | "failed" | "unavailable">, error?: string): Promise<void> {
-  await query(`UPDATE download_jobs SET status = $2, error_message = $3, completed_at = now() WHERE id = $1`, [id, status, error ?? null]);
+  await query(`UPDATE download_jobs SET status = $2, error_message = $3, completed_at = now() WHERE id = $1 AND status = 'downloading'`, [id, status, error ?? null]);
 }

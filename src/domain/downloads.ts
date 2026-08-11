@@ -18,3 +18,8 @@ export function isDownloadListed(video: Pick<Video, "media">): boolean {
 export function isDownloadInProgress(video: Pick<Video, "media">): boolean {
   return video.media?.state === "queued" || video.media?.state === "downloading";
 }
+
+export function sortDownloads<T extends Pick<Video, "media">>(videos: T[]): T[] {
+  const order: Record<string, number> = { ready: 0, downloading: 1, queued: 2, failed: 3, unavailable: 4 };
+  return [...videos].sort((left, right) => (order[left.media?.state ?? ""] ?? 5) - (order[right.media?.state ?? ""] ?? 5));
+}

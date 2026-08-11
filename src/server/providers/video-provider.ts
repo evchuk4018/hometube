@@ -9,6 +9,6 @@ export type DownloadResult = {
 
 export interface VideoProvider {
   listChannelVideos(providerChannelId: string): Promise<ProviderVideo[]>;
-  downloadVideo(providerVideoId: string, outputPath: string): Promise<DownloadResult>;
+  downloadVideo(providerVideoId: string, outputPath: string, signal?: AbortSignal): Promise<DownloadResult>;
   downloadThumbnail(thumbnailUrl: string, outputPath: string): Promise<void>;
 }

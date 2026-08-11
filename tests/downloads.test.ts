@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isDownloadInProgress, isDownloadListed } from "@/domain/downloads";
+import { isDownloadInProgress, isDownloadListed, sortDownloads } from "@/domain/downloads";
 import type { MediaState, Video } from "@/domain/types";
 
 function videoWithState(state: MediaState): Pick<Video, "media"> {
@@ -30,5 +30,10 @@ describe("download list states", () => {
     expect(isDownloadListed(videoWithState("unavailable"))).toBe(true);
     expect(isDownloadListed(videoWithState("deleted"))).toBe(false);
     expect(isDownloadInProgress(videoWithState("ready"))).toBe(false);
+  });
+
+  it("sorts ready downloads before active and failed downloads", () => {
+    const states: MediaState[] = ["failed", "queued", "ready", "downloading"];
+    expect(sortDownloads(states.map((state) => videoWithState(state))).map((video) => video.media?.state)).toEqual(["ready", "downloading", "queued", "failed"]);
   });
 });

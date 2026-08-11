@@ -6,6 +6,7 @@ import { enqueueDownload } from "../repositories/download-repository";
 import { findVideoById, updateVideoPinned, updateVideoProgress } from "../repositories/video-repository";
 import { recordWatchEvent } from "../repositories/watch-event-repository";
 import { removeLocalVideoAssets } from "./media-service";
+import { cancelDownload } from "./download-service";
 import type { VideoAction } from "../validation";
 
 export async function performVideoAction(videoId: string, action: VideoAction) {
@@ -19,6 +20,7 @@ export async function performVideoAction(videoId: string, action: VideoAction) {
       manualState: action
     });
     const updated = await updateVideoProgress({ id: videoId, ...update });
+    if (action === "watched") await cancelDownload(videoId);
     await recordChannelEngagement({ channelId: video.channelId, watched: action === "watched", percentage: update.watchPercentage });
     await recordWatchEvent({ videoId, eventType: "manual", positionSeconds: update.positionSeconds, watchPercentage: update.watchPercentage });
     return updated;
@@ -26,6 +28,10 @@ export async function performVideoAction(videoId: string, action: VideoAction) {
   if (action === "pin" || action === "unpin") return updateVideoPinned(videoId, action === "pin");
   if (action === "download") {
     await enqueueDownload(videoId, video.isPodcast ? "podcast" : "manual");
+    return findVideoById(videoId);
+  }
+  if (action === "cancel-download") {
+    await cancelDownload(videoId);
     return findVideoById(videoId);
   }
   const media = await findReadyMedia(videoId);

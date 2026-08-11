@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { isDownloadInProgress, isDownloadListed } from "@/domain/downloads";
+import { isDownloadInProgress, isDownloadListed, sortDownloads } from "@/domain/downloads";
 import type { FeedVideo, Video } from "@/domain/types";
 import { appPath } from "./app-path";
 import { StatusPill } from "./components/status-pill";
@@ -18,9 +18,10 @@ export function HomeClient({ initialVideos, initialDownloads, generatedAt }: { i
     setVideos((current) => current.map((video) => video.id === next.id ? { ...video, ...next } : video).filter((video) => video.watchState !== "watched"));
     setDownloads((current) => {
       if (!isDownloadListed(next)) return current.filter((video) => video.id !== next.id);
-      return current.some((video) => video.id === next.id)
+      const updated = current.some((video) => video.id === next.id)
         ? current.map((video) => video.id === next.id ? { ...video, ...next } : video)
         : [next, ...current];
+      return sortDownloads(updated);
     });
   }
 
@@ -33,7 +34,7 @@ export function HomeClient({ initialVideos, initialDownloads, generatedAt }: { i
         const response = await fetch(appPath("/api/downloads"), { cache: "no-store" });
         if (!response.ok) return;
         const payload = await response.json() as { videos?: Video[] };
-        if (!cancelled && payload.videos) setDownloads(payload.videos);
+        if (!cancelled && payload.videos) setDownloads(sortDownloads(payload.videos));
       } catch {
         // The current list remains useful when a refresh is temporarily unavailable.
       }

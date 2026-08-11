@@ -57,7 +57,7 @@ export async function listDownloadVideos(): Promise<Video[]> {
     `SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id
      LEFT JOIN media_files m ON m.video_id = v.id
      WHERE m.state IN ('queued', 'downloading', 'ready', 'failed', 'unavailable')
-     ORDER BY CASE m.state WHEN 'downloading' THEN 0 WHEN 'queued' THEN 1 WHEN 'failed' THEN 2 WHEN 'unavailable' THEN 3 ELSE 4 END,
+     ORDER BY CASE m.state WHEN 'ready' THEN 0 WHEN 'downloading' THEN 1 WHEN 'queued' THEN 2 WHEN 'failed' THEN 3 WHEN 'unavailable' THEN 4 ELSE 5 END,
        m.updated_at DESC, v.published_at DESC NULLS LAST, v.id`,
     []
   );
