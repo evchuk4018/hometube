@@ -10,6 +10,10 @@ export const progressSchema = z.object({
   manualState: z.enum(["watched", "unwatched"]).optional()
 });
 
+export const playbackNextQuerySchema = z.object({
+  excludeVideoId: z.string().uuid().optional()
+});
+
 export const channelActionSchema = z.object({
   action: z.enum(["retain", "unretain", "prune", "unprune", "remove", "restore", "podcast", "normal", "pin", "unpin"])
 });

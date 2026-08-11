@@ -64,6 +64,26 @@ export async function listDownloadVideos(): Promise<Video[]> {
   return result.rows.map(mapVideoRow);
 }
 
+export async function listPlaybackCandidates(limit = 500): Promise<Video[]> {
+  const result = await query<Record<string, unknown>>(
+    `SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id
+     JOIN media_files m ON m.video_id = v.id AND m.state = 'ready'
+     LEFT JOIN LATERAL (
+       SELECT r.position
+       FROM recommendations r
+       WHERE r.video_id = v.id AND r.active = true
+       ORDER BY r.generated_at DESC, r.id DESC
+       LIMIT 1
+     ) active_recommendation ON true
+     WHERE v.watch_state = 'unwatched' AND v.is_ignored = false AND c.is_pruned = false
+     ORDER BY active_recommendation.position ASC NULLS LAST,
+       v.recommendation_score DESC, v.published_at DESC NULLS LAST, v.id
+     LIMIT $1`,
+    [limit]
+  );
+  return result.rows.map(mapVideoRow);
+}
+
 export async function listVideosByChannel(channelId: string, limit = 200): Promise<Video[]> {
   const result = await query<Record<string, unknown>>(
     `SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id
