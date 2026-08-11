@@ -18,6 +18,7 @@ export function WatchClient({ initialVideo }: { initialVideo: Video }) {
   const [message, setMessage] = useState("");
   const playerRef = useRef<HTMLVideoElement>(null);
   const lastProgress = useRef(0);
+  const refreshInFlight = useRef(false);
   const isReady = video.media?.state === "ready";
   const thumbnailUrl = video.thumbnailUrl ? appPath(`/api/videos/${video.id}/thumbnail`) : undefined;
   const downloadLabel = useMemo(() => {
@@ -28,13 +29,21 @@ export function WatchClient({ initialVideo }: { initialVideo: Video }) {
     return "Preparing local playback";
   }, [download]);
 
-  async function refresh() {
-    const response = await fetch(appPath(`/api/videos/${video.id}`), { cache: "no-store" });
-    if (!response.ok) return;
-    const payload = await response.json() as { video?: Video; download?: DownloadStatus };
-    if (payload.video) setVideo(payload.video);
-    if (payload.download !== undefined) setDownload(payload.download);
-  }
+  const refresh = useCallback(async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    try {
+      const response = await fetch(appPath(`/api/videos/${video.id}`), { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = await response.json() as { video?: Video; download?: DownloadStatus };
+      if (payload.video) setVideo(payload.video);
+      if (payload.download !== undefined) setDownload(payload.download);
+    } catch {
+      // Keep the current download state when a background refresh is unavailable.
+    } finally {
+      refreshInFlight.current = false;
+    }
+  }, [video.id]);
 
   const requestDownload = useCallback(async () => {
     try {
@@ -57,9 +66,21 @@ export function WatchClient({ initialVideo }: { initialVideo: Video }) {
 
   useEffect(() => {
     if (isReady) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
     const interval = window.setInterval(() => void refresh(), 1500);
-    return () => window.clearInterval(interval);
-  }, [isReady, video.id]);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("pageshow", refreshWhenVisible);
+    void refresh();
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("pageshow", refreshWhenVisible);
+    };
+  }, [isReady, refresh]);
 
   useEffect(() => {
     if (sleepSeconds == null || sleepSeconds < 0) return;
