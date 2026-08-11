@@ -13,6 +13,7 @@ export const appConfig = {
   mediaTargetBytes: Math.min(numberEnv("MEDIA_TARGET_BYTES", DEFAULT_MEDIA_TARGET_BYTES, 1), MAX_MEDIA_BYTES),
   completionThreshold: Math.min(numberEnv("COMPLETION_THRESHOLD", DEFAULT_COMPLETION_THRESHOLD, 0.01), 1),
   homeRecommendationTarget: Math.floor(numberEnv("HOME_RECOMMENDATION_TARGET", 40, 1)),
+  autoDownloadCount: Math.floor(numberEnv("AUTO_DOWNLOAD_COUNT", 8, 1)),
   trialPoolSize: Math.floor(numberEnv("TRIAL_POOL_SIZE", 10, 1)),
   discoveryChannelCount: Math.floor(numberEnv("DISCOVERY_CHANNEL_COUNT", 10, 1)),
   discoveryCadenceHours: Math.floor(numberEnv("DISCOVERY_CADENCE_HOURS", 168, 1)),

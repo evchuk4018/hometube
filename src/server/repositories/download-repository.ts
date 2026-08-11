@@ -11,6 +11,11 @@ export type DownloadJob = {
 
 export async function enqueueDownload(videoId: string, kind: DownloadJob["kind"]): Promise<void> {
   await query(
+    `INSERT INTO media_files (video_id, path, state) VALUES ($1, '', 'queued')
+     ON CONFLICT (video_id) DO UPDATE SET state = CASE WHEN media_files.state = 'ready' THEN media_files.state ELSE 'queued' END, error_message = NULL, updated_at = now()`,
+    [videoId]
+  );
+  await query(
     `INSERT INTO download_jobs (video_id, kind, status) VALUES ($1, $2, 'queued')
      ON CONFLICT (video_id) WHERE status IN ('queued', 'downloading') DO UPDATE SET kind = EXCLUDED.kind`,
     [videoId, kind]
@@ -46,4 +51,3 @@ export async function claimNextDownload(): Promise<DownloadJob | null> {
 export async function finishDownload(id: string, status: Extract<DownloadJob["status"], "ready" | "failed" | "unavailable">, error?: string): Promise<void> {
   await query(`UPDATE download_jobs SET status = $2, error_message = $3, completed_at = now() WHERE id = $1`, [id, status, error ?? null]);
 }
-

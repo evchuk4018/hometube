@@ -10,11 +10,11 @@ const namesAndHandles: Array<[string, string]> = [
   ["The Royal Institution", "@TheRoyalInstitution"], ["Institute of Art and Ideas", "@iai"], ["The School of Life", "@theschooloflifetv"], ["Big Think", "@bigthink"],
   ["The Economist", "@TheEconomist"], ["Vox", "@Vox"], ["Johnny Harris", "@johnnyharris"], ["PolyMatter", "@PolyMatter"],
   ["The B1M", "@TheB1M"], ["City Beautiful", "@CityBeautifulOfficial"], ["Not Just Bikes", "@NotJustBikes"], ["Climate Town", "@climatetown"],
-  ["Defunctland", "@Defunctland"], ["Townsends", "@townsends"], ["Technology Connections Extra", "@technologyconnections"], ["The History Guy", "@TheHistoryGuyChannel"],
+  ["Defunctland", "@Defunctland"], ["Townsends", "@townsends"], ["Technology Connections Extra", "@TechnologyConnectionsExtra"], ["The History Guy", "@TheHistoryGuyChannel"],
   ["Fall of Civilizations", "@FallofCivilizations"], ["Tasting History", "@TastingHistory"], ["Kings and Generals", "@KingsandGenerals"], ["Historia Civilis", "@HistoriaCivilis"],
   ["The Operations Room", "@TheOperationsRoom"], ["Epic History TV", "@EpicHistoryTV"], ["Voices of the Past", "@VoicesofthePast"], ["World War Two", "@WorldWarTwo"],
   ["Rick Beato", "@RickBeato"], ["Adam Neely", "@AdamNeely"], ["12tone", "@12tone"], ["Polyphonic", "@Polyphonic"],
-  ["NPR Music", "@nprmusic"], ["KEXP", "@KEXP"], ["Tiny Desk Concerts", "@nprmusic"], ["Definitive Rock", "@definitiverock"],
+  ["NPR Music", "@nprmusic"], ["KEXP", "@KEXP"], ["Tiny Desk Concerts", "@nprmusic-tinydesk"], ["Definitive Rock", "@definitiverock"],
   ["Binging with Babish", "@babishculinaryuniverse"], ["America's Test Kitchen", "@AmericasTestKitchen"], ["J. Kenji López-Alt", "@JKenjiLopezAlt"], ["Chinese Cooking Demystified", "@ChineseCookingDemystified"],
   ["Eater", "@eater"], ["Bon Appétit", "@bonappetit"], ["Serious Eats", "@seriouseats"], ["Pro Home Cooks", "@ProHomeCooks"],
   ["The Art Assignment", "@TheArtAssignment"], ["Smarthistory", "@smarthistory"], ["Great Art Explained", "@GreatArtExplained"], ["The Canvas", "@TheCanvas"],
@@ -37,4 +37,3 @@ const namesAndHandles: Array<[string, string]> = [
 ];
 
 export const initialChannels: SeedChannel[] = namesAndHandles.map(([name, handle]) => ({ providerId: handle, name, handle }));
-

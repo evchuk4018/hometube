@@ -11,6 +11,7 @@ import type { VideoProvider } from "../providers/video-provider";
 export async function requestDownload(videoId: string, kind: DownloadJob["kind"] = "manual"): Promise<void> {
   const video = await findVideoById(videoId);
   if (!video) throw new Error("Video not found.");
+  if (video.media?.state === "ready") return;
   await enqueueDownload(videoId, kind);
 }
 

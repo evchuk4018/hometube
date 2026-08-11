@@ -50,12 +50,15 @@ your interests evolve; channel source and stable provider IDs are retained.
 
 ## Homelab deployment
 
-The Compose stack has `postgres`, `web`, `worker`, the private
-`opendataloader-hybrid` service, and an optional `discord` profile. The web
-container binds only to localhost; Tailscale Serve remains the private HTTPS
-boundary. OpenDataLoader is CPU-only, capped at 2 CPUs and 3 GiB RAM, uses the
-named `wowzerbowser-opendataloader-cache` volume, and does not publish port
-5002.
+The Compose stack has `postgres`, `web`, `worker`, an optional isolated
+`opendataloader-hybrid` profile, and an optional `discord` profile. In the
+normal homelab profile, web and worker reuse the already-running private
+`wowzerbowser-opendataloader-hybrid` container over the external
+`wowzerbowser-application` network, so the existing OCR service is not
+duplicated. The isolated profile is CPU-only, capped at 2 CPUs and 3 GiB RAM,
+uses the named `wowzerbowser-opendataloader-cache` volume, and does not publish
+port 5002. The web container binds only to localhost; Tailscale Serve remains
+the private HTTPS boundary.
 
 On homelab, from the checked-out application directory:
 
@@ -64,8 +67,20 @@ docker compose --env-file /srv/storage/wowzerbowser/deployment.env up -d --build
 docker compose exec web npm run db:migrate
 docker compose exec web npm run db:check
 docker compose exec web npm run db:seed
-curl --fail http://127.0.0.1:3000/api/health
+curl --fail http://127.0.0.1:3010/api/health
 ```
+
+The default `3010` binding intentionally avoids the existing Wowzer Bowser
+listener on port 3000. To expose HomeTube privately without replacing the
+existing root or `/drive` Serve routes, add a path route once the stack is
+healthy, then confirm it with `tailscale serve status`:
+
+```bash
+tailscale serve --bg --set-path /hometube http://127.0.0.1:3010
+```
+
+The resulting private URL is
+`https://homelab.tail861ffd.ts.net/hometube`.
 
 Keep the deployment environment private. `APP_ACCESS_TOKEN` is optional because
 the service is already behind Tailscale, but it can add a second boundary.
@@ -85,4 +100,3 @@ podcast protection, channel scoring, trial behavior, Home diversity and
 replenishment, and stable/idempotent synchronization. Per repository
 instructions, verification is command-based; no browser or screenshot checks
 are used.
-

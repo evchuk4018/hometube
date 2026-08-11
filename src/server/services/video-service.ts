@@ -4,6 +4,7 @@ import { recordChannelEngagement } from "../repositories/channel-repository";
 import { deleteMediaRecord, findReadyMedia } from "../repositories/media-repository";
 import { enqueueDownload } from "../repositories/download-repository";
 import { findVideoById, updateVideoPinned, updateVideoProgress } from "../repositories/video-repository";
+import { recordWatchEvent } from "../repositories/watch-event-repository";
 import { removePhysicalMedia } from "./media-service";
 import type { VideoAction } from "../validation";
 
@@ -19,6 +20,7 @@ export async function performVideoAction(videoId: string, action: VideoAction) {
     });
     const updated = await updateVideoProgress({ id: videoId, ...update });
     await recordChannelEngagement({ channelId: video.channelId, watched: action === "watched", percentage: update.watchPercentage });
+    await recordWatchEvent({ videoId, eventType: "manual", positionSeconds: update.positionSeconds, watchPercentage: update.watchPercentage });
     return updated;
   }
   if (action === "pin" || action === "unpin") return updateVideoPinned(videoId, action === "pin");
@@ -42,6 +44,6 @@ export async function recordProgress(input: { videoId: string; positionSeconds: 
   const newlyOpened = video.watchState === "unwatched" && update.positionSeconds > 0;
   const newlyWatched = video.watchState !== "watched" && update.state === "watched";
   if (newlyOpened || newlyWatched) await recordChannelEngagement({ channelId: video.channelId, opened: newlyOpened, watched: newlyWatched, percentage: update.watchPercentage });
+  await recordWatchEvent({ videoId: input.videoId, eventType: newlyWatched ? "watched" : "progress", positionSeconds: update.positionSeconds, watchPercentage: update.watchPercentage });
   return updated;
 }
-

@@ -1,5 +1,6 @@
 import eslint from "@eslint/js";
 import typescriptParser from "@typescript-eslint/parser";
+import nextPlugin from "@next/eslint-plugin-next";
 
 export default [
   { ignores: [".next/**", "node_modules/**", "coverage/**"] },
@@ -10,7 +11,9 @@ export default [
       parser: typescriptParser,
       parserOptions: { ecmaVersion: "latest", sourceType: "module", ecmaFeatures: { jsx: true } }
     },
+    plugins: { "@next/next": nextPlugin },
     rules: {
+      ...nextPlugin.configs.recommended.rules,
       "no-undef": "off",
       "no-unused-vars": "off",
       "no-redeclare": "off"

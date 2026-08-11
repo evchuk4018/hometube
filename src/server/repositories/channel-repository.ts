@@ -64,10 +64,23 @@ export async function setChannelRetention(id: string, retained: boolean): Promis
 export async function setChannelPruned(id: string, pruned: boolean): Promise<Channel | null> {
   const result = await query<Record<string, unknown>>(
     `UPDATE channels SET is_pruned = $2,
-       rejection_count = rejection_count + CASE WHEN $2 THEN 1 ELSE 0 END,
-       last_rejection_reason = CASE WHEN $2 THEN 'channel pruned from active recommendations' ELSE last_rejection_reason END,
+       rejection_count = rejection_count + CASE WHEN $2 AND NOT is_pruned THEN 1 ELSE 0 END,
+       last_rejection_reason = CASE WHEN $2 AND NOT is_pruned THEN 'channel pruned from active recommendations' ELSE last_rejection_reason END,
        updated_at = now() WHERE id = $1 RETURNING ${channelColumns}`,
     [id, pruned]
+  );
+  return result.rows[0] ? mapChannelRow(result.rows[0]) : null;
+}
+
+export async function removeChannelFromRecommendations(id: string, restore: boolean): Promise<Channel | null> {
+  const result = await query<Record<string, unknown>>(
+    `UPDATE channels SET is_subscribed = CASE WHEN $2 THEN is_subscribed ELSE false END,
+       is_retained = CASE WHEN $2 THEN true ELSE false END,
+       is_pruned = NOT $2,
+       rejection_count = rejection_count + CASE WHEN $2 THEN 0 ELSE 1 END,
+       last_rejection_reason = CASE WHEN $2 THEN last_rejection_reason ELSE 'channel removed from normal recommendations' END,
+       updated_at = now() WHERE id = $1 RETURNING ${channelColumns}`,
+    [id, restore]
   );
   return result.rows[0] ? mapChannelRow(result.rows[0]) : null;
 }

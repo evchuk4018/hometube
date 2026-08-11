@@ -33,6 +33,8 @@ export function VideoCard({ video, reason, onChanged }: { video: Video; reason?:
   const [message, setMessage] = useState("");
   const lastProgress = useRef(0);
   const downloaded = current.media?.state === "ready";
+  const mediaState = current.media?.state;
+  const mediaLabel = mediaState === "ready" ? `Downloaded · ${current.media?.height}p` : mediaState === "queued" ? "Queued" : mediaState === "downloading" ? "Downloading" : mediaState === "failed" ? "Download failed" : mediaState === "unavailable" ? "Unavailable" : "Not downloaded";
 
   async function act(action: "watched" | "unwatched" | "pin" | "unpin" | "download" | "delete-media") {
     setBusy(true);
@@ -100,13 +102,12 @@ export function VideoCard({ video, reason, onChanged }: { video: Video; reason?:
         {reason ? <p className="recommendation-reason">{reason}</p> : null}
         {current.watchPercentage > 0 && current.watchState !== "watched" ? <div className="progress-track" aria-label={`${Math.round(current.watchPercentage * 100)} percent watched`}><span style={{ width: `${Math.round(current.watchPercentage * 100)}%` }} /></div> : null}
         <div className="card-actions">
-          {downloaded ? <button className="button button-quiet" type="button" onClick={() => void act("delete-media")} disabled={busy}>Remove local</button> : <button className="button button-primary" type="button" onClick={() => void act("download")} disabled={busy}>Acquire locally</button>}
+          {downloaded ? <button className="button button-quiet" type="button" onClick={() => void act("delete-media")} disabled={busy}>Remove local</button> : <button className="button button-primary" type="button" onClick={() => void act("download")} disabled={busy || mediaState === "queued" || mediaState === "downloading"}>Acquire locally</button>}
           <button className="icon-button" type="button" aria-label={current.isPinned ? "Unpin video" : "Pin video"} onClick={() => void act(current.isPinned ? "unpin" : "pin")} disabled={busy}>{current.isPinned ? "★" : "☆"}</button>
           <button className="button button-quiet" type="button" onClick={() => void act(current.watchState === "watched" ? "unwatched" : "watched")} disabled={busy}>{current.watchState === "watched" ? "Mark unwatched" : "Mark watched"}</button>
         </div>
-        <div className="card-footnote">{downloaded ? <StatusPill tone="lime">Downloaded · {current.media?.height}p</StatusPill> : <StatusPill>Not downloaded</StatusPill>}{current.isTrial ? <StatusPill tone="blue">Trial pick</StatusPill> : null}{message ? <span className="action-message">{message}</span> : null}</div>
+        <div className="card-footnote">{downloaded ? <StatusPill tone="lime">{mediaLabel}</StatusPill> : mediaState === "failed" ? <StatusPill tone="amber">{mediaLabel}</StatusPill> : mediaState === "downloading" ? <StatusPill tone="blue">{mediaLabel}</StatusPill> : <StatusPill>{mediaLabel}</StatusPill>}{current.isTrial ? <StatusPill tone="blue">Trial pick</StatusPill> : null}{message ? <span className="action-message">{message}</span> : null}</div>
       </div>
     </article>
   );
 }
-

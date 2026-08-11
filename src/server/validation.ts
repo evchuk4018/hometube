@@ -11,7 +11,7 @@ export const progressSchema = z.object({
 });
 
 export const channelActionSchema = z.object({
-  action: z.enum(["retain", "unretain", "prune", "unprune", "podcast", "normal", "pin", "unpin"])
+  action: z.enum(["retain", "unretain", "prune", "unprune", "remove", "restore", "podcast", "normal", "pin", "unpin"])
 });
 
 export const createChannelSchema = z.object({

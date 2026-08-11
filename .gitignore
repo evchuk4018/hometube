@@ -5,8 +5,8 @@ coverage/
 .env
 .env.local
 *.log
+*.tsbuildinfo
 media/
 dist/
 playwright-report/
 test-results/
-

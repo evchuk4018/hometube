@@ -5,6 +5,7 @@ import { appConfig, hasDatabase } from "../config";
 import { mapVideoRow } from "../row-mappers";
 import { listChannels, findChannelById, listPodcastChannels, recordChannelPresentation } from "../repositories/channel-repository";
 import { listFeedVideoRows, listPodcastEpisodes, listVideosByChannel } from "../repositories/video-repository";
+import { replaceActiveRecommendations } from "../repositories/recommendation-repository";
 
 function demoChannel(id: string, name: string, source: Channel["source"], podcast = false): Channel {
   return {
@@ -103,6 +104,7 @@ export async function getHomeData(): Promise<{ videos: FeedVideo[]; generatedAt:
         };
       });
       const ranked = rankHomeVideos(videos, appConfig.homeRecommendationTarget);
+      await replaceActiveRecommendations(ranked);
       await Promise.all([...new Set(ranked.map((video) => video.channelId))].map((channelId) => recordChannelPresentation(channelId)));
       return { videos: ranked, generatedAt: new Date().toISOString() };
     },

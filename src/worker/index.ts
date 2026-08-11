@@ -2,7 +2,7 @@ import { appConfig, hasDatabase } from "@/server/config";
 import { YtDlpProvider } from "@/server/providers/ytdlp-provider";
 import { cleanupCache, processOneDownload } from "@/server/services/download-service";
 import { runChannelDiscovery } from "@/server/services/discovery-service";
-import { syncAllCatalog, syncPodcastCatalog, shouldRunCatalogSync, evaluateTrials } from "@/server/services/sync-service";
+import { syncAllCatalog, syncPodcastCatalog, shouldRunCatalogSync, evaluateTrials, queueNormalRecommendations } from "@/server/services/sync-service";
 
 async function runCycle(provider: YtDlpProvider, state: { lastCatalogSync: number | null }): Promise<void> {
   if (!hasDatabase()) {
@@ -16,6 +16,7 @@ async function runCycle(provider: YtDlpProvider, state: { lastCatalogSync: numbe
     await syncPodcastCatalog(provider);
   }
   await evaluateTrials();
+  await queueNormalRecommendations();
   for (let count = 0; count < 3; count += 1) {
     if (!(await processOneDownload(provider))) break;
   }

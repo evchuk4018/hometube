@@ -1,5 +1,5 @@
 import { appConfig } from "../config";
-import { createChannel, findChannelById, setChannelPinned, setChannelPruned, setChannelRetention, setPodcastMode } from "../repositories/channel-repository";
+import { createChannel, findChannelById, removeChannelFromRecommendations, setChannelPinned, setChannelPruned, setChannelRetention, setPodcastMode } from "../repositories/channel-repository";
 import { createChannelSchema } from "../validation";
 
 export async function addChannel(input: unknown) {
@@ -7,11 +7,13 @@ export async function addChannel(input: unknown) {
   return createChannel(parsed);
 }
 
-export async function performChannelAction(channelId: string, action: "retain" | "unretain" | "prune" | "unprune" | "podcast" | "normal") {
+export async function performChannelAction(channelId: string, action: "retain" | "unretain" | "prune" | "unprune" | "remove" | "restore" | "podcast" | "normal") {
   if (action === "retain") return setChannelRetention(channelId, true);
   if (action === "unretain") return setChannelRetention(channelId, false);
   if (action === "prune") return setChannelPruned(channelId, true);
   if (action === "unprune") return setChannelPruned(channelId, false);
+  if (action === "remove") return removeChannelFromRecommendations(channelId, false);
+  if (action === "restore") return removeChannelFromRecommendations(channelId, true);
   if (action === "podcast") return setPodcastMode(channelId, true);
   return setPodcastMode(channelId, false);
 }

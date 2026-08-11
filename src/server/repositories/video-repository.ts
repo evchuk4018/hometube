@@ -36,7 +36,7 @@ export async function listFeedVideoRows(limit = 500): Promise<FeedVideoRow[]> {
       c.is_retained AS channel_is_retained, c.is_pinned AS channel_is_pinned,
       c.is_pruned AS channel_is_pruned, c.source AS channel_source
      FROM videos v JOIN channels c ON c.id = v.channel_id
-     LEFT JOIN media_files m ON m.video_id = v.id AND m.state = 'ready'
+     LEFT JOIN media_files m ON m.video_id = v.id
      WHERE v.is_ignored = false AND c.is_pruned = false
      ORDER BY v.published_at DESC NULLS LAST LIMIT $1`,
     [limit]
@@ -47,7 +47,7 @@ export async function listFeedVideoRows(limit = 500): Promise<FeedVideoRow[]> {
 export async function listVideosByChannel(channelId: string, limit = 200): Promise<Video[]> {
   const result = await query<Record<string, unknown>>(
     `SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id
-     LEFT JOIN media_files m ON m.video_id = v.id AND m.state = 'ready'
+     LEFT JOIN media_files m ON m.video_id = v.id
      WHERE v.channel_id = $1 ORDER BY v.published_at DESC NULLS LAST, v.view_count DESC NULLS LAST LIMIT $2`,
     [channelId, limit]
   );
@@ -57,7 +57,7 @@ export async function listVideosByChannel(channelId: string, limit = 200): Promi
 export async function listPodcastEpisodes(limit = 300): Promise<Video[]> {
   const result = await query<Record<string, unknown>>(
     `SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id
-     LEFT JOIN media_files m ON m.video_id = v.id AND m.state = 'ready'
+     LEFT JOIN media_files m ON m.video_id = v.id
      WHERE c.is_podcast = true ORDER BY v.published_at DESC NULLS LAST LIMIT $1`,
     [limit]
   );
@@ -65,12 +65,12 @@ export async function listPodcastEpisodes(limit = 300): Promise<Video[]> {
 }
 
 export async function findVideoById(id: string): Promise<Video | null> {
-  const result = await query<Record<string, unknown>>(`SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id LEFT JOIN media_files m ON m.video_id = v.id AND m.state = 'ready' WHERE v.id = $1`, [id]);
+  const result = await query<Record<string, unknown>>(`SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id LEFT JOIN media_files m ON m.video_id = v.id WHERE v.id = $1`, [id]);
   return result.rows[0] ? mapVideoRow(result.rows[0]) : null;
 }
 
 export async function findVideoByProviderId(providerId: string): Promise<Video | null> {
-  const result = await query<Record<string, unknown>>(`SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id LEFT JOIN media_files m ON m.video_id = v.id AND m.state = 'ready' WHERE v.provider_id = $1`, [providerId]);
+  const result = await query<Record<string, unknown>>(`SELECT ${videoSelect} FROM videos v JOIN channels c ON c.id = v.channel_id LEFT JOIN media_files m ON m.video_id = v.id WHERE v.provider_id = $1`, [providerId]);
   return result.rows[0] ? mapVideoRow(result.rows[0]) : null;
 }
 
@@ -115,4 +115,3 @@ export async function setVideoIgnored(id: string, ignored: boolean): Promise<voi
 export async function setVideoTrial(id: string, trial: boolean): Promise<void> {
   await query(`UPDATE videos SET is_trial = $2, updated_at = now() WHERE id = $1`, [id, trial]);
 }
-
