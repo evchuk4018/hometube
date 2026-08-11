@@ -5,9 +5,9 @@ services:
     cpus: "0.50"
     mem_limit: 1g
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-hometube}
-      POSTGRES_USER: ${POSTGRES_USER:-hometube}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the deployment environment}
+      POSTGRES_DB: ${HOMETUBE_POSTGRES_DB:-hometube}
+      POSTGRES_USER: ${HOMETUBE_POSTGRES_USER:-hometube}
+      POSTGRES_PASSWORD: ${HOMETUBE_POSTGRES_PASSWORD:?Set HOMETUBE_POSTGRES_PASSWORD in the deployment environment}
     volumes:
       - ${HOMETUBE_POSTGRES_DATA:-/srv/storage/hometube-postgres}:/var/lib/postgresql/data
     healthcheck:
@@ -26,7 +26,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-hometube}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}/hometube
+      DATABASE_URL: postgresql://${HOMETUBE_POSTGRES_USER:-hometube}:${HOMETUBE_POSTGRES_PASSWORD:?Set HOMETUBE_POSTGRES_PASSWORD}@postgres:5432/${HOMETUBE_POSTGRES_DB:-hometube}
       MEDIA_ROOT: /srv/storage/hometube-media
       MEDIA_TARGET_BYTES: ${MEDIA_TARGET_BYTES:-128849018880}
       APP_ACCESS_TOKEN: ${APP_ACCESS_TOKEN:-}
@@ -62,7 +62,7 @@ services:
     command: ["npm", "run", "worker"]
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-hometube}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}/hometube
+      DATABASE_URL: postgresql://${HOMETUBE_POSTGRES_USER:-hometube}:${HOMETUBE_POSTGRES_PASSWORD:?Set HOMETUBE_POSTGRES_PASSWORD}@postgres:5432/${HOMETUBE_POSTGRES_DB:-hometube}
       MEDIA_ROOT: /srv/storage/hometube-media
       MEDIA_TARGET_BYTES: ${MEDIA_TARGET_BYTES:-128849018880}
       COMPLETION_THRESHOLD: ${COMPLETION_THRESHOLD:-0.9}
