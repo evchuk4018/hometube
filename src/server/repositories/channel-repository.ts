@@ -89,8 +89,8 @@ export async function promoteTrialChannel(id: string): Promise<void> {
   await query(`UPDATE channels SET is_retained = true, is_pruned = false, trial_ends_at = NULL, updated_at = now() WHERE id = $1`, [id]);
 }
 
-export async function recordChannelPresentation(channelId: string): Promise<void> {
-  await query(`UPDATE channels SET videos_presented = videos_presented + 1, updated_at = now() WHERE id = $1`, [channelId]);
+export async function recordChannelPresentation(channelId: string, count = 1): Promise<void> {
+  await query(`UPDATE channels SET videos_presented = videos_presented + $2, updated_at = now() WHERE id = $1`, [channelId, count]);
 }
 
 export async function setPodcastMode(id: string, podcast: boolean): Promise<Channel | null> {

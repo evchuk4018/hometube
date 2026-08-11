@@ -36,7 +36,11 @@ export function scoreChannel(channel: ChannelScoreInput, now = Date.now()): numb
   return evidence * (0.4 + meaningfulWatch) + boundedRecent * 1.25 + recencyBoost(channel.lastInteractionAt, now) + sourceBoost + protectionBoost + podcastBoost - prunePenalty;
 }
 
-export type RankableVideo = Video & { channelPreference: number };
+export type RankableVideo = Video & {
+  channelPreference: number;
+  channelVideosPresented?: number;
+  channelVideosWatched?: number;
+};
 
 function videoScore(video: RankableVideo, now: number): number {
   const ageDays = video.publishedAt ? Math.max(0, (now - Date.parse(video.publishedAt)) / 86_400_000) : 365;
@@ -48,7 +52,23 @@ function videoScore(video: RankableVideo, now: number): number {
   return video.channelPreference * 2.8 + recency * 0.8 + completionSignal + diversity + viewSignal - watchedPenalty;
 }
 
-export function rankHomeVideos(videos: RankableVideo[], target = 40, now = Date.now()): FeedVideo[] {
+function coldStartVideoScore(video: RankableVideo, now: number, shuffle: number): number {
+  const ageDays = video.publishedAt ? Math.max(0, (now - Date.parse(video.publishedAt)) / 86_400_000) : 365;
+  const recency = Math.exp(-ageDays / 45);
+  const viewSignal = Math.log1p(video.viewCount ?? 0) / 25;
+  // Metadata is only a small tie-breaker while the channel has no completed watches.
+  return shuffle + recency * 0.03 + viewSignal * 0.02 + (video.isTrial ? 0.02 : 0);
+}
+
+function isColdStart(video: RankableVideo): boolean {
+  return (video.channelVideosWatched ?? 0) === 0;
+}
+
+function presentationPenalty(video: RankableVideo): number {
+  return Math.log1p(Math.max(0, video.channelVideosPresented ?? 0));
+}
+
+export function rankHomeVideos(videos: RankableVideo[], target = 40, now = Date.now(), random = Math.random): FeedVideo[] {
   const eligible = videos.filter((video) => video.watchState !== "watched" && !video.isIgnored);
   const groups = new Map<string, RankableVideo[]>();
   for (const video of eligible) {
@@ -56,10 +76,29 @@ export function rankHomeVideos(videos: RankableVideo[], target = 40, now = Date.
     group.push(video);
     groups.set(video.channelId, group);
   }
-  for (const group of groups.values()) group.sort((a, b) => videoScore(b, now) - videoScore(a, now));
+
+  const shuffleKeys = new Map<string, number>();
+  const coldVideoShuffleKeys = new Map<string, number>();
+  for (const [channelId, group] of groups) {
+    if (isColdStart(group[0])) {
+      shuffleKeys.set(channelId, random());
+      for (const video of group) coldVideoShuffleKeys.set(video.id, random());
+      group.sort((a, b) => coldStartVideoScore(b, now, coldVideoShuffleKeys.get(b.id) ?? 0) - coldStartVideoScore(a, now, coldVideoShuffleKeys.get(a.id) ?? 0));
+    } else {
+      group.sort((a, b) => videoScore(b, now) - videoScore(a, now));
+    }
+  }
 
   const ranked: FeedVideo[] = [];
-  const channelOrder = [...groups.entries()].sort(([, left], [, right]) => videoScore(right[0], now) - videoScore(left[0], now));
+  const channelOrder = [...groups.entries()].sort(([, left], [, right]) => {
+    const leftScore = isColdStart(left[0])
+      ? (shuffleKeys.get(left[0].channelId) ?? 0) - presentationPenalty(left[0])
+      : videoScore(left[0], now);
+    const rightScore = isColdStart(right[0])
+      ? (shuffleKeys.get(right[0].channelId) ?? 0) - presentationPenalty(right[0])
+      : videoScore(right[0], now);
+    return rightScore - leftScore;
+  });
   let round = 0;
   while (ranked.length < target && channelOrder.some(([, group]) => group.length > 0)) {
     for (const [, group] of channelOrder) {

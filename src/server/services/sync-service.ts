@@ -45,6 +45,8 @@ export async function queueNormalRecommendations(): Promise<number> {
   const rows = await listFeedVideoRows();
   const ranked = rankHomeVideos(rows.map((row) => ({
     ...mapVideoRow(row),
+    channelVideosPresented: Number(row.channel_videos_presented ?? 0),
+    channelVideosWatched: Number(row.channel_videos_watched ?? 0),
     channelPreference: scoreChannel({
       videosPresented: Number(row.channel_videos_presented ?? 0),
       videosOpened: Number(row.channel_videos_opened ?? 0),

@@ -11,11 +11,12 @@ function channel(id: string, watched: number): Channel {
   };
 }
 
-function video(id: string, channelId: string, state: Video["watchState"] = "unwatched", trial = false): Video & { channelPreference: number } {
+function video(id: string, channelId: string, state: Video["watchState"] = "unwatched", trial = false, channelVideosPresented = 0, channelVideosWatched = 0): Video & { channelPreference: number; channelVideosPresented: number; channelVideosWatched: number } {
   return {
     id, providerId: id, channelId, channelName: channelId, title: id, thumbnailUrl: null, publishedAt: new Date().toISOString(),
     durationSeconds: 100, viewCount: 1000, watchState: state, progressSeconds: 0, watchPercentage: 0,
-    isTrial: trial, isIgnored: false, isPinned: false, recommendationScore: 0, isPodcast: false, media: null, channelPreference: 1
+    isTrial: trial, isIgnored: false, isPinned: false, recommendationScore: 0, isPodcast: false, media: null, channelPreference: 1,
+    channelVideosPresented, channelVideosWatched
   };
 }
 
@@ -33,5 +34,41 @@ describe("recommendation behavior", () => {
     expect(next).toHaveLength(40);
     expect(next.every((item) => item.watchState !== "watched")).toBe(true);
   });
-});
 
+  it("randomizes cold-start channels instead of using source preference", () => {
+    const preferred = video("preferred", "preferred");
+    const randomPick = video("random-pick", "random-pick");
+    const values = [0.1, 0.9, 0.9, 0.1];
+
+    const ranked = rankHomeVideos([
+      { ...preferred, channelPreference: 100 },
+      { ...randomPick, channelPreference: -100 }
+    ], 2, Date.parse("2024-01-02T00:00:00.000Z"), () => values.shift() ?? 0);
+
+    expect(ranked.map((item) => item.channelId)).toEqual(["random-pick", "preferred"]);
+  });
+
+  it("pushes previously presented cold-start channels down on reload", () => {
+    const newChannel = video("new", "new", "unwatched", false, 0, 0);
+    const seenChannel = video("seen", "seen", "unwatched", false, 1, 0);
+
+    const ranked = rankHomeVideos([
+      { ...newChannel, channelPreference: 0 },
+      { ...seenChannel, channelPreference: 0 }
+    ], 2, Date.parse("2024-01-02T00:00:00.000Z"), () => 0.5);
+
+    expect(ranked.map((item) => item.channelId)).toEqual(["new", "seen"]);
+  });
+
+  it("returns to learned channel scoring after completed watches exist", () => {
+    const learned = video("learned", "learned", "unwatched", false, 20, 3);
+    const cold = video("cold", "cold", "unwatched", false, 0, 0);
+
+    const ranked = rankHomeVideos([
+      { ...learned, channelPreference: 5 },
+      { ...cold, channelPreference: 100 }
+    ], 2, Date.parse("2024-01-02T00:00:00.000Z"), () => 0);
+
+    expect(ranked[0].channelId).toBe("learned");
+  });
+});

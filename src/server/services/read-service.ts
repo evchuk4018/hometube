@@ -88,6 +88,8 @@ export async function getHomeData(): Promise<{ videos: FeedVideo[]; generatedAt:
         const video = mapVideoRow(row);
         return {
           ...video,
+          channelVideosPresented: Number(row.channel_videos_presented ?? 0),
+          channelVideosWatched: Number(row.channel_videos_watched ?? 0),
           channelPreference: scoreChannel({
             videosPresented: Number(row.channel_videos_presented ?? 0),
             videosOpened: Number(row.channel_videos_opened ?? 0),
@@ -105,7 +107,9 @@ export async function getHomeData(): Promise<{ videos: FeedVideo[]; generatedAt:
       });
       const ranked = rankHomeVideos(videos, appConfig.homeRecommendationTarget);
       await replaceActiveRecommendations(ranked);
-      await Promise.all([...new Set(ranked.map((video) => video.channelId))].map((channelId) => recordChannelPresentation(channelId)));
+      const presentations = new Map<string, number>();
+      for (const video of ranked) presentations.set(video.channelId, (presentations.get(video.channelId) ?? 0) + 1);
+      await Promise.all([...presentations.entries()].map(([channelId, count]) => recordChannelPresentation(channelId, count)));
       return { videos: ranked, generatedAt: new Date().toISOString() };
     },
     () => {
