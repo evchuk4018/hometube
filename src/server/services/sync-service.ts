@@ -21,16 +21,23 @@ export async function syncChannel(channel: { id: string; providerId: string; isP
 }
 
 export async function syncPodcastCatalog(provider: VideoProvider): Promise<number> {
-  const channels = await listPodcastChannels();
-  let total = 0;
-  for (const channel of channels) total += await syncChannel(channel, provider);
-  return total;
+  return syncChannels(await listPodcastChannels(), provider);
 }
 
 export async function syncAllCatalog(provider: VideoProvider): Promise<number> {
-  const channels = await listChannels();
+  return syncChannels(await listChannels(), provider);
+}
+
+async function syncChannels(channels: Array<{ providerId: string; id: string; isPodcast: boolean }>, provider: VideoProvider): Promise<number> {
   let total = 0;
-  for (const channel of channels) total += await syncChannel(channel, provider);
+  for (const channel of channels) {
+    try {
+      total += await syncChannel(channel, provider);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn("Skipping channel " + channel.providerId + " after provider sync failure: " + message);
+    }
+  }
   return total;
 }
 

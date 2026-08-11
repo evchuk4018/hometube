@@ -28,7 +28,7 @@ const namesAndHandles: Array<[string, string]> = [
   ["The Thought Emporium", "@TheThoughtEmporium"], ["Journey to the Microcosmos", "@journeytomicro"], ["Deep Look", "@DeepLook"], ["Crime Pays but Botany Doesn't", "@CrimePaysButBotanyDoesnt"],
   ["Mossy Earth", "@MossyEarth"], ["PBS Terra", "@PBSTerra"], ["OceanX", "@OceanX"], ["SciShow", "@SciShow"],
   ["The Strongest Minds", "@TheStrongestMinds"], ["Huberman Lab", "@hubermanlab"], ["The Happiness Lab", "@TheHappinessLab"], ["Hidden Brain", "@HiddenBrain"],
-  ["99% Invisible", "@99mediacenter"], ["Radiolab", "@Radiolab"], ["The Rest Is History", "@TheRestIsHistory"], ["The Ezra Klein Show", "@EzraKleinShow"],
+  ["99% Invisible", "@99percentinvisiblepodcast"], ["Radiolab", "@Radiolab"], ["The Rest Is History", "@TheRestIsHistory"], ["The Ezra Klein Show", "@EzraKleinShow"],
   ["Freakonomics Radio", "@freakonomics"], ["Revisionist History", "@pushkin"], ["Cautionary Tales", "@PushkinPodcasts"], ["The Moth", "@TheMoth"],
   ["Lofi Girl", "@LofiGirl"], ["Cafe Music BGM channel", "@cafe_music_BGMchannel"], ["Chillhop Music", "@Chillhopdotcom"], ["COLORS", "@COLORSxSTUDIOS"],
   ["NPR", "@npr"], ["PBS NewsHour", "@PBSNewsHour"], ["60 Minutes", "@60Minutes"], ["Frontline PBS", "@frontlinepbs"],
