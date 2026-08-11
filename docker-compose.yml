@@ -80,6 +80,7 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
       YTDLP_BINARY: yt-dlp
+      WORKER_INTERVAL_SECONDS: ${WORKER_INTERVAL_SECONDS:-2}
       OPENDATALOADER_URL: ${OPENDATALOADER_URL:-http://wowzerbowser-opendataloader-hybrid:5002}
     volumes:
       - ${HOMETUBE_MEDIA_ROOT:-/srv/storage/hometube-media}:/srv/storage/hometube-media

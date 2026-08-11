@@ -23,7 +23,7 @@ export const appConfig = {
   openRouterBaseUrl: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
   openRouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
   youtubeCookieFile: process.env.YOUTUBE_COOKIE_FILE ?? "",
-  workerIntervalSeconds: Math.floor(numberEnv("WORKER_INTERVAL_SECONDS", 60, 5))
+  workerIntervalSeconds: Math.floor(numberEnv("WORKER_INTERVAL_SECONDS", 2, 1))
 } as const;
 
 export function hasDatabase(): boolean {

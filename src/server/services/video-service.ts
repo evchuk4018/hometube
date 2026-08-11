@@ -27,7 +27,7 @@ export async function performVideoAction(videoId: string, action: VideoAction) {
   }
   if (action === "pin" || action === "unpin") return updateVideoPinned(videoId, action === "pin");
   if (action === "download") {
-    await enqueueDownload(videoId, video.isPodcast ? "podcast" : "manual");
+    await enqueueDownload(videoId, "manual");
     return findVideoById(videoId);
   }
   if (action === "cancel-download") {

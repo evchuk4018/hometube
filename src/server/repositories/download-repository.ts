@@ -1,4 +1,4 @@
-import { query } from "../db";
+import { query, withTransaction } from "../db";
 
 export type DownloadJob = {
   id: string;
@@ -58,17 +58,33 @@ export async function completeDownload(input: { jobId: string; videoId: string; 
   return result.rowCount !== 0;
 }
 
-export async function enqueueDownload(videoId: string, kind: DownloadJob["kind"], priority = kind === "podcast" ? 200 : kind === "manual" ? 100 : 0): Promise<void> {
-  await query(
-    `INSERT INTO media_files (video_id, path, state) VALUES ($1, '', 'queued')
-     ON CONFLICT (video_id) DO UPDATE SET state = CASE WHEN media_files.state = 'ready' THEN media_files.state ELSE 'queued' END, error_message = NULL, updated_at = now()`,
-    [videoId]
-  );
-  await query(
-    `INSERT INTO download_jobs (video_id, kind, status, priority) VALUES ($1, $2, 'queued', $3)
-     ON CONFLICT (video_id) WHERE status IN ('queued', 'downloading') DO UPDATE SET kind = EXCLUDED.kind, priority = GREATEST(download_jobs.priority, EXCLUDED.priority)`,
-    [videoId, kind, priority]
-  );
+export async function enqueueDownload(videoId: string, kind: DownloadJob["kind"], priority = kind === "podcast" ? 200 : kind === "manual" ? 300 : 0): Promise<void> {
+  await withTransaction(async (client) => {
+    await client.query(
+      `INSERT INTO media_files (video_id, path, state) VALUES ($1, '', 'queued')
+       ON CONFLICT (video_id) DO UPDATE SET state = CASE WHEN media_files.state = 'ready' THEN media_files.state ELSE 'queued' END, error_message = NULL, updated_at = now()`,
+      [videoId]
+    );
+    await client.query(
+      `INSERT INTO download_jobs (video_id, kind, status, priority) VALUES ($1, $2, 'queued', $3)
+       ON CONFLICT (video_id) WHERE status IN ('queued', 'downloading') DO UPDATE SET kind = EXCLUDED.kind, priority = GREATEST(download_jobs.priority, EXCLUDED.priority)`,
+      [videoId, kind, priority]
+    );
+    if (kind === "manual") {
+      await client.query(
+        `WITH cancelled AS (
+           UPDATE download_jobs
+           SET status = 'cancelled', error_message = 'Paused for manual download', completed_at = now()
+           WHERE kind IN ('auto', 'podcast') AND status = 'downloading'
+           RETURNING video_id
+         )
+         UPDATE media_files m
+         SET state = 'deleted', updated_at = now()
+         FROM cancelled
+         WHERE m.video_id = cancelled.video_id AND m.state = 'downloading'`
+      );
+    }
+  });
 }
 
 export async function cancelQueuedPodcastBacklog(channelId: string, podcastStartedAt: string): Promise<number> {

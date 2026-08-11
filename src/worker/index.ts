@@ -9,6 +9,9 @@ async function runCycle(provider: YtDlpProvider, state: { lastCatalogSync: numbe
     console.warn("Worker is waiting for DATABASE_URL.");
     return;
   }
+  for (let count = 0; count < 3; count += 1) {
+    if (!(await processOneDownload(provider))) break;
+  }
   if (shouldRunCatalogSync(state.lastCatalogSync)) {
     await syncAllCatalog(provider);
     state.lastCatalogSync = Date.now();
@@ -27,11 +30,16 @@ async function runCycle(provider: YtDlpProvider, state: { lastCatalogSync: numbe
 async function main(): Promise<void> {
   const provider = new YtDlpProvider();
   const state = { lastCatalogSync: null as number | null };
+  let cycleRunning = false;
   const cycle = async () => {
+    if (cycleRunning) return;
+    cycleRunning = true;
     try {
       await runCycle(provider, state);
     } catch (error) {
       console.error("HomeTube worker cycle failed.", error);
+    } finally {
+      cycleRunning = false;
     }
   };
   await cycle();
