@@ -1,7 +1,7 @@
 import type { SeedChannel } from "./types";
 
 /**
- * Screenshot-inspired additions to the general starter catalog.
+ * Channels visible in the supplied YouTube screenshots.
  *
  * These remain initial-seed channels so HomeTube can learn from actual
  * viewing behavior instead of treating the screenshots as fixed preferences.
@@ -23,5 +23,7 @@ export const screenshotChannels: SeedChannel[] = [
   { providerId: "@hankschannel", name: "Hank Green", handle: "@hankschannel" },
   { providerId: "@TotallyNotMark", name: "Totally Not Mark", handle: "@TotallyNotMark" },
   { providerId: "@EliBEssays", name: "Eli B", handle: "@EliBEssays" },
-  { providerId: "@De-Monetised", name: "Demonetized", handle: "@De-Monetised" }
+  { providerId: "@De-Monetised", name: "Demonetized", handle: "@De-Monetised" },
+  { providerId: "@CGPGrey", name: "CGP Grey", handle: "@CGPGrey" },
+  { providerId: "@mkbhd", name: "Marques Brownlee", handle: "@mkbhd" }
 ];

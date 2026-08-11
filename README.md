@@ -45,13 +45,15 @@ npm run db:check
 npm run db:seed
 ```
 
-The seed file contains more than 100 channel entries, including a
-screenshot-inspired preset with Atrioc, Big A Bonus, How Money Works,
-Lemonade Stand, Morning Brew, Ludwig, Data Slayer, Good Work, Better Stack,
-LMG Clips, Hank Green, Totally Not Mark, Eli B, Demonetized, and related
-channels. Replace or extend it as your interests evolve; channel source and
+The seed file contains a compact, screenshot-biased catalog of about 30
+channels, including Atrioc, Big A Bonus, How Money Works, Lemonade Stand,
+Morning Brew, Ludwig, Data Slayer, Good Work, Better Stack, LMG Clips, Hank
+Green, Totally Not Mark, CGP Grey, Marques Brownlee, Demonetized, and
+Fireship. Replace or extend it as your interests evolve; channel source and
 stable provider IDs are retained. Re-running the database seed command is
-idempotent for existing channels and adds new preset entries.
+idempotent, adds the current preset entries, and removes obsolete channels
+from the old initial seed while leaving user-added, AI-recommended, and
+podcast channels untouched.
 
 ## Homelab deployment
 

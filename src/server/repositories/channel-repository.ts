@@ -1,5 +1,5 @@
 import type { Channel, ChannelSource } from "@/domain/types";
-import { query } from "../db";
+import { query, withTransaction } from "../db";
 import { mapChannelRow } from "../row-mappers";
 
 const channelColumns = `
@@ -161,4 +161,28 @@ export async function rememberChannelRejection(id: string, reason: string, justi
     `UPDATE channels SET rejection_count = rejection_count + 1, last_rejection_reason = $2, last_ai_justification = COALESCE($3, last_ai_justification), updated_at = now() WHERE id = $1`,
     [id, reason, justification ?? null]
   );
+}
+
+/**
+ * Remove channels that came from an older initial seed without touching any
+ * user-added, AI-discovered, or podcast channels. Video catalog rows are
+ * removed first because channels intentionally restrict direct deletion;
+ * their dependent media, jobs, recommendations, and watch events cascade.
+ */
+export async function removeObsoleteInitialSeedChannels(keepProviderIds: string[]): Promise<number> {
+  const keep = [...new Set(keepProviderIds)];
+  return withTransaction(async (client) => {
+    const obsolete = await client.query<{ id: string }>(
+      `SELECT id FROM channels
+       WHERE source = 'initial_seed'
+         AND NOT (provider_id = ANY($1::text[]))`,
+      [keep]
+    );
+    const channelIds = obsolete.rows.map((row) => row.id);
+    if (!channelIds.length) return 0;
+
+    await client.query(`DELETE FROM videos WHERE channel_id = ANY($1::uuid[])`, [channelIds]);
+    const deleted = await client.query(`DELETE FROM channels WHERE id = ANY($1::uuid[])`, [channelIds]);
+    return deleted.rowCount ?? 0;
+  });
 }
