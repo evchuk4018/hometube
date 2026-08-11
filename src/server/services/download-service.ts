@@ -4,7 +4,7 @@ import { assertDownloadedMediaPolicy, planEvictions } from "@/domain/media-polic
 import { appConfig } from "../config";
 import { findVideoById } from "../repositories/video-repository";
 import { currentMediaBytes, listEvictionCandidates, listCompletedPodcastMedia, markMediaState, deleteMediaRecord } from "../repositories/media-repository";
-import { enqueueDownload, claimNextDownload, completeDownload, finishDownload, isDownloadCancelled, cancelDownload as cancelDownloadJob, type DownloadJob } from "../repositories/download-repository";
+import { enqueueDownload, claimNextDownload, completeDownload, finishDownload, isDownloadCancelled, cancelDownload as cancelDownloadJob, updateDownloadProgress, type DownloadJob } from "../repositories/download-repository";
 import { ensureMediaRoot, expectedThumbnailPath, removeLocalVideoAssets, removePhysicalMedia } from "./media-service";
 import type { VideoProvider } from "../providers/video-provider";
 
@@ -48,7 +48,7 @@ export async function processOneDownload(provider: VideoProvider): Promise<boole
   }, 1000);
   try {
     await markMediaState(video.id, "downloading", { path: tempPath });
-    const result = await provider.downloadVideo(video.providerId, tempPath, controller.signal);
+    const result = await provider.downloadVideo(video.providerId, tempPath, controller.signal, (percent) => { void updateDownloadProgress(job.id, percent); });
     if (controller.signal.aborted || await isDownloadCancelled(job.id)) throw new Error("Download cancelled.");
     assertDownloadedMediaPolicy(result.bytes, result.height);
     await evictForIncoming(result.bytes);

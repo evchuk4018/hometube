@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { thumbnailUrlForVideo } from "@/domain/thumbnails";
 import type { Video } from "@/domain/types";
 import { appPath } from "../app-path";
@@ -24,7 +24,6 @@ export function VideoCard({ video, reason, position, onChanged }: { video: Video
   const [current, setCurrent] = useState(video);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const lastProgress = useRef(0);
   const downloaded = current.media?.state === "ready";
   const thumbnailUrl = thumbnailUrlForVideo(current.thumbnailUrl, current.providerId);
   const preloadThumbnail = shouldPreloadThumbnail(position);
@@ -48,37 +47,11 @@ export function VideoCard({ video, reason, position, onChanged }: { video: Video
     }
   }
 
-  async function saveProgress(positionSeconds: number, durationSeconds: number) {
-    if (Math.abs(positionSeconds - lastProgress.current) < 8 && positionSeconds < durationSeconds - 2) return;
-    lastProgress.current = positionSeconds;
-    try {
-      const response = await fetch(appPath(`/api/videos/${current.id}/progress`), { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ positionSeconds, durationSeconds }) });
-      if (response.ok) {
-        const payload = await response.json() as { video?: Video };
-        if (payload.video) {
-          setCurrent(payload.video);
-          onChanged?.(payload.video);
-        }
-      }
-    } catch {
-      // Playback remains usable when a transient progress request fails.
-    }
-  }
-
   return (
     <article className="video-card">
       <div className="video-thumb-wrap">
-        {downloaded ? (
-          <video
-            className="video-player"
-            controls
-            preload="metadata"
-            src={appPath(`/api/videos/${current.id}/media`)}
-            poster={thumbnailUrl ? appPath(`/api/videos/${current.id}/thumbnail`) : undefined}
-            onLoadedMetadata={(event) => { event.currentTarget.currentTime = current.progressSeconds; }}
-            onTimeUpdate={(event) => { const player = event.currentTarget; void saveProgress(player.currentTime, player.duration || current.durationSeconds); }}
-          />
-        ) : thumbnailUrl ? (
+        <Link href={appPath(`/watch/${current.id}`)} className="video-thumb-link" aria-label={`Watch ${current.title}`}>
+        {thumbnailUrl ? (
           <Image
             src={thumbnailUrl}
             alt=""
@@ -94,12 +67,14 @@ export function VideoCard({ video, reason, position, onChanged }: { video: Video
           <div className="video-thumb placeholder-thumb"><span>▶</span></div>
         )}
         <span className="duration-badge">{formatDuration(current.durationSeconds)}</span>
+        {downloaded ? <span className="play-overlay" aria-hidden="true">â–¶</span> : null}
+        </Link>
       </div>
       <div className="video-card-body">
         <div className="video-card-heading">
           <div>
             <Link href={appPath(`/channels/${current.channelId}`)} className="eyebrow">{current.channelName}</Link>
-            <h3>{current.title}</h3>
+            <h3><Link href={appPath(`/watch/${current.id}`)}>{current.title}</Link></h3>
           </div>
           {current.watchState === "watched" ? <StatusPill tone="lime">Watched</StatusPill> : current.watchState === "in_progress" ? <StatusPill tone="amber">{Math.round(current.watchPercentage * 100)}% in</StatusPill> : <StatusPill>Unwatched</StatusPill>}
         </div>

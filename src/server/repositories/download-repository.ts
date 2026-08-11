@@ -7,6 +7,13 @@ export type DownloadJob = {
   kind: "auto" | "manual" | "podcast";
   status: "queued" | "downloading" | "ready" | "failed" | "unavailable" | "cancelled";
   attempts: number;
+  progressPercent: number | null;
+};
+
+export type DownloadStatus = {
+  status: DownloadJob["status"];
+  progressPercent: number | null;
+  queuePosition: number | null;
 };
 
 export async function cancelDownload(videoId: string): Promise<{ cancelled: boolean; path: string | null }> {
@@ -51,16 +58,16 @@ export async function completeDownload(input: { jobId: string; videoId: string; 
   return result.rowCount !== 0;
 }
 
-export async function enqueueDownload(videoId: string, kind: DownloadJob["kind"]): Promise<void> {
+export async function enqueueDownload(videoId: string, kind: DownloadJob["kind"], priority = kind === "podcast" ? 200 : kind === "manual" ? 100 : 0): Promise<void> {
   await query(
     `INSERT INTO media_files (video_id, path, state) VALUES ($1, '', 'queued')
      ON CONFLICT (video_id) DO UPDATE SET state = CASE WHEN media_files.state = 'ready' THEN media_files.state ELSE 'queued' END, error_message = NULL, updated_at = now()`,
     [videoId]
   );
   await query(
-    `INSERT INTO download_jobs (video_id, kind, status) VALUES ($1, $2, 'queued')
-     ON CONFLICT (video_id) WHERE status IN ('queued', 'downloading') DO UPDATE SET kind = EXCLUDED.kind`,
-    [videoId, kind]
+    `INSERT INTO download_jobs (video_id, kind, status, priority) VALUES ($1, $2, 'queued', $3)
+     ON CONFLICT (video_id) WHERE status IN ('queued', 'downloading') DO UPDATE SET kind = EXCLUDED.kind, priority = GREATEST(download_jobs.priority, EXCLUDED.priority)`,
+    [videoId, kind, priority]
   );
 }
 
@@ -109,14 +116,14 @@ export async function claimNextDownload(): Promise<DownloadJob | null> {
   const result = await query<Record<string, unknown>>(
     `WITH next_job AS (
       SELECT j.id FROM download_jobs j JOIN videos v ON v.id = j.video_id JOIN channels c ON c.id = v.channel_id
-      WHERE j.status = 'queued' ORDER BY (c.is_podcast AND v.watch_state IN ('unwatched', 'in_progress')) DESC,
-        CASE j.kind WHEN 'podcast' THEN 0 WHEN 'manual' THEN 1 ELSE 2 END, j.requested_at ASC
+      WHERE j.status = 'queued' ORDER BY j.priority DESC,
+        (c.is_podcast AND v.watch_state IN ('unwatched', 'in_progress')) DESC, j.requested_at ASC
       FOR UPDATE SKIP LOCKED LIMIT 1
     )
-    UPDATE download_jobs j SET status = 'downloading', started_at = now(), attempts = attempts + 1
+    UPDATE download_jobs j SET status = 'downloading', started_at = now(), attempts = attempts + 1, progress_percent = 0
     FROM next_job WHERE j.id = next_job.id
     RETURNING j.id, j.video_id, j.kind, j.status, j.attempts,
-      (SELECT provider_id FROM videos WHERE id = j.video_id) AS provider_id`,
+      (SELECT provider_id FROM videos WHERE id = j.video_id) AS provider_id, j.progress_percent`,
     []
   );
   if (!result.rows[0]) return null;
@@ -127,8 +134,26 @@ export async function claimNextDownload(): Promise<DownloadJob | null> {
     providerId: String(row.provider_id),
     kind: row.kind as DownloadJob["kind"],
     status: row.status as DownloadJob["status"],
-    attempts: Number(row.attempts)
+    attempts: Number(row.attempts),
+    progressPercent: row.progress_percent == null ? null : Number(row.progress_percent)
   };
+}
+
+export async function updateDownloadProgress(jobId: string, progressPercent: number): Promise<void> {
+  await query(`UPDATE download_jobs SET progress_percent = $2 WHERE id = $1 AND status = 'downloading'`, [jobId, Math.max(0, Math.min(100, progressPercent))]);
+}
+
+export async function findDownloadStatus(videoId: string): Promise<DownloadStatus | null> {
+  const result = await query<{ status: DownloadJob["status"]; progress_percent: string | null; queue_position: string | null }>(
+    `SELECT j.status, j.progress_percent,
+       CASE WHEN j.status = 'queued' THEN (
+         SELECT COUNT(*) + 1 FROM download_jobs queued
+         WHERE queued.status = 'queued' AND (queued.priority > j.priority OR (queued.priority = j.priority AND queued.requested_at < j.requested_at))
+       ) ELSE NULL END AS queue_position
+     FROM download_jobs j WHERE j.video_id = $1 ORDER BY j.requested_at DESC LIMIT 1`, [videoId]
+  );
+  const row = result.rows[0];
+  return row ? { status: row.status, progressPercent: row.progress_percent == null ? null : Number(row.progress_percent), queuePosition: row.queue_position == null ? null : Number(row.queue_position) } : null;
 }
 
 export async function finishDownload(id: string, status: Extract<DownloadJob["status"], "ready" | "failed" | "unavailable">, error?: string): Promise<void> {
