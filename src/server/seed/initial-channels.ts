@@ -1,4 +1,7 @@
-export type SeedChannel = { providerId: string; name: string; handle: string };
+import { screenshotChannels } from "./screenshot-channels";
+import type { SeedChannel } from "./types";
+
+export type { SeedChannel } from "./types";
 
 const namesAndHandles: Array<[string, string]> = [
   ["3Blue1Brown", "@3blue1brown"], ["Veritasium", "@veritasium"], ["Kurzgesagt", "@kurzgesagt"], ["Numberphile", "@numberphile"],
@@ -36,4 +39,6 @@ const namesAndHandles: Array<[string, string]> = [
   ["The Atlantic", "@TheAtlantic"], ["The Verge", "@TheVerge"], ["Wired", "@WIRED"], ["Ars Technica", "@arstechnica"]
 ];
 
-export const initialChannels: SeedChannel[] = namesAndHandles.map(([name, handle]) => ({ providerId: handle, name, handle }));
+const baseChannels: SeedChannel[] = namesAndHandles.map(([name, handle]) => ({ providerId: handle, name, handle }));
+
+export const initialChannels: SeedChannel[] = [...baseChannels, ...screenshotChannels];
