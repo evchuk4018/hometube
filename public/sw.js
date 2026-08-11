@@ -1,7 +1,9 @@
 /* global self, caches, URL, fetch, Response */
 
 const CACHE = "hometube-shell-v1";
-const SHELL = ["/", "/channels", "/podcasts", "/manifest.webmanifest", "/icon.svg"];
+const BASE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
+const appPath = (pathname) => (BASE_PATH + pathname) || "/";
+const SHELL = [appPath("/"), appPath("/channels"), appPath("/podcasts"), appPath("/manifest.webmanifest"), appPath("/icon.svg")];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
@@ -14,7 +16,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  if (request.method !== "GET" || new URL(request.url).pathname.startsWith("/api/")) return;
+  if (request.method !== "GET" || new URL(request.url).pathname.startsWith(appPath("/api/"))) return;
   event.respondWith(
     fetch(request).then((response) => {
       const copy = response.clone();

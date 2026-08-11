@@ -82,6 +82,10 @@ tailscale serve --bg --set-path /hometube http://127.0.0.1:3010
 The resulting private URL is
 `https://homelab.tail861ffd.ts.net/hometube`.
 
+When HomeTube is mounted below a Tailscale Serve path, keep
+`NEXT_PUBLIC_BASE_PATH=/hometube` in the deployment environment so generated
+links, API calls, PWA assets, and the service worker stay inside that path.
+
 Keep the deployment environment private. `APP_ACCESS_TOKEN` is optional because
 the service is already behind Tailscale, but it can add a second boundary.
 

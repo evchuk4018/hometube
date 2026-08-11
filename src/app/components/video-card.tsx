@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import type { Video } from "@/domain/types";
+import { appPath } from "../app-path";
 import { StatusPill } from "./status-pill";
 
 function formatDuration(seconds: number): string {
@@ -40,7 +41,7 @@ export function VideoCard({ video, reason, onChanged }: { video: Video; reason?:
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch(`/api/videos/${current.id}/actions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) });
+      const response = await fetch(appPath(`/api/videos/${current.id}/actions`), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) });
       const payload = await response.json() as { video?: Video; error?: string };
       if (!response.ok || !payload.video) throw new Error(payload.error ?? "Action failed.");
       setCurrent(payload.video);
@@ -57,7 +58,7 @@ export function VideoCard({ video, reason, onChanged }: { video: Video; reason?:
     if (Math.abs(positionSeconds - lastProgress.current) < 8 && positionSeconds < durationSeconds - 2) return;
     lastProgress.current = positionSeconds;
     try {
-      const response = await fetch(`/api/videos/${current.id}/progress`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ positionSeconds, durationSeconds }) });
+      const response = await fetch(appPath(`/api/videos/${current.id}/progress`), { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ positionSeconds, durationSeconds }) });
       if (response.ok) {
         const payload = await response.json() as { video?: Video };
         if (payload.video) {
@@ -78,7 +79,7 @@ export function VideoCard({ video, reason, onChanged }: { video: Video; reason?:
             className="video-player"
             controls
             preload="metadata"
-            src={`/api/videos/${current.id}/media`}
+            src={appPath(`/api/videos/${current.id}/media`)}
             poster={safeThumbnail(current.thumbnailUrl) ? current.thumbnailUrl ?? undefined : undefined}
             onLoadedMetadata={(event) => { event.currentTarget.currentTime = current.progressSeconds; }}
             onTimeUpdate={(event) => { const player = event.currentTarget; void saveProgress(player.currentTime, player.duration || current.durationSeconds); }}
@@ -93,7 +94,7 @@ export function VideoCard({ video, reason, onChanged }: { video: Video; reason?:
       <div className="video-card-body">
         <div className="video-card-heading">
           <div>
-            <Link href={`/channels/${current.channelId}`} className="eyebrow">{current.channelName}</Link>
+            <Link href={appPath(`/channels/${current.channelId}`)} className="eyebrow">{current.channelName}</Link>
             <h3>{current.title}</h3>
           </div>
           {current.watchState === "watched" ? <StatusPill tone="lime">Watched</StatusPill> : current.watchState === "in_progress" ? <StatusPill tone="amber">{Math.round(current.watchPercentage * 100)}% in</StatusPill> : <StatusPill>Unwatched</StatusPill>}

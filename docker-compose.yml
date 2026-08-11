@@ -20,6 +20,8 @@ services:
     build:
       context: .
       target: runner
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-}
     restart: unless-stopped
     cpus: "0.75"
     mem_limit: 1g
@@ -41,6 +43,7 @@ services:
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
       OPENDATALOADER_URL: ${OPENDATALOADER_URL:-http://wowzerbowser-opendataloader-hybrid:5002}
+      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-}
     volumes:
       - ${HOMETUBE_MEDIA_ROOT:-/srv/storage/hometube-media}:/srv/storage/hometube-media
     ports:
@@ -56,6 +59,8 @@ services:
     build:
       context: .
       target: runner
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-}
     restart: unless-stopped
     cpus: "1.00"
     mem_limit: 1536m
