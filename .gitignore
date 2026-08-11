@@ -6,7 +6,7 @@ coverage/
 .env.local
 *.log
 *.tsbuildinfo
-media/
+/media/
 dist/
 playwright-report/
 test-results/
