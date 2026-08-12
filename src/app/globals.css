@@ -119,6 +119,7 @@ h3 { margin-bottom: 6px; font-size: 1rem; line-height: 1.2; letter-spacing: -.02
 .watch-back { display: inline-block; margin: 8px 0 18px; color: var(--muted); font-size: .8rem; }
 .watch-player-shell { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 14px; background: #020809; }
 .watch-player { display: block; width: 100%; height: 100%; background: #020809; }
+.watch-audio { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .watch-loading { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; flex-direction: column; gap: 10px; padding: 24px; background-position: center; background-size: cover; text-align: center; }
 .watch-loading strong { font-size: 1.1rem; }
 .watch-loading p { max-width: 440px; margin: 0; color: var(--muted); font-size: .82rem; }
