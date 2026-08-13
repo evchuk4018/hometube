@@ -43,6 +43,7 @@ export const videoSummarySchema = z.object({
   liveStatus: z.string().nullable(),
   mediaStatus: mediaStatusSchema,
   mediaError: z.string().nullable(),
+  hasBackgroundAudio: z.boolean(),
   downloadable: z.boolean()
 });
 
@@ -56,4 +57,3 @@ export type ChannelPagePayload = {
   total: number;
   activeJob: JobSummary | null;
 };
-

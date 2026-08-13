@@ -4,7 +4,7 @@ import { apiError } from '@/server/protocol/http';
 async function respond(request: Request, params: Promise<{ id: string }>, head: boolean) {
   try {
     const { id } = await params;
-    return await mediaResponse(id, 'video', request, head);
+    return await mediaResponse(id, 'audio', request, head);
   } catch (error) {
     return apiError(error);
   }

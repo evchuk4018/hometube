@@ -2,14 +2,28 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { parseByteRange } from '@/domain/media-range';
-import { getMediaFile } from './media-repository';
+import { getMediaAsset, type MediaAsset, type MediaAssetKind } from './media-repository';
 import { resolveMediaPath } from './media-path';
 import { NotFoundError } from '@/server/protocol/http';
 
-export async function mediaResponse(videoId: string, request: Request, head = false): Promise<Response> {
-  const media = await getMediaFile(videoId);
-  if (!media) throw new NotFoundError('Local media not found.');
-  const filePath = resolveMediaPath(media.relativePath);
+export async function mediaResponse(
+  videoId: string,
+  kind: MediaAssetKind,
+  request: Request,
+  head = false
+): Promise<Response> {
+  const media = await getMediaAsset(videoId, kind);
+  if (!media) throw new NotFoundError(`Local ${kind} media not found.`);
+  return mediaAssetResponse(media, request, head);
+}
+
+export async function mediaAssetResponse(
+  media: MediaAsset,
+  request: Request,
+  head = false,
+  root?: string
+): Promise<Response> {
+  const filePath = resolveMediaPath(media.relativePath, root);
   const details = await stat(filePath).catch(() => null);
   if (!details?.isFile()) throw new NotFoundError('Local media file is missing.');
   const size = details.size;

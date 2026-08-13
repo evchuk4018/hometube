@@ -37,13 +37,24 @@ async function handleVideoDownload(job: ClaimedJob): Promise<void> {
   const media = await downloadVideo(job.id, job.videoId, (progress, stage) => updateJobProgress(job.id, progress, stage));
   await transaction(async (client) => {
     await client.query(`
-      INSERT INTO media_files (video_id, relative_path, size_bytes, content_type, width, height, video_codec, audio_codec)
-      VALUES ($1, $2, $3, 'video/mp4', $4, $5, $6, $7)
+      INSERT INTO media_files (
+        video_id, relative_path, size_bytes, content_type, width, height, video_codec, audio_codec,
+        audio_relative_path, audio_size_bytes, audio_content_type
+      )
+      VALUES ($1, $2, $3, 'video/mp4', $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT (video_id) DO UPDATE SET
         relative_path = EXCLUDED.relative_path, size_bytes = EXCLUDED.size_bytes,
         content_type = EXCLUDED.content_type, width = EXCLUDED.width, height = EXCLUDED.height,
-        video_codec = EXCLUDED.video_codec, audio_codec = EXCLUDED.audio_codec, created_at = now()
-    `, [job.videoId, media.relativePath, media.sizeBytes, media.width, media.height, media.videoCodec, media.audioCodec]);
+        video_codec = EXCLUDED.video_codec, audio_codec = EXCLUDED.audio_codec,
+        audio_relative_path = EXCLUDED.audio_relative_path,
+        audio_size_bytes = EXCLUDED.audio_size_bytes,
+        audio_content_type = EXCLUDED.audio_content_type,
+        created_at = now()
+    `, [
+      job.videoId, media.relativePath, media.sizeBytes, media.width, media.height,
+      media.videoCodec, media.audioCodec, media.backgroundAudio?.relativePath ?? null,
+      media.backgroundAudio?.sizeBytes ?? null, media.backgroundAudio?.contentType ?? null
+    ]);
     await client.query(`UPDATE videos SET media_status = 'ready', media_error = NULL, updated_at = now() WHERE id = $1`, [job.videoId]);
   });
   await completeJob(job.id, 'Ready to play');
@@ -60,4 +71,3 @@ export async function reflectJobFailure(job: ClaimedJob, message: string): Promi
     `, [job.videoId, finalFailure ? 'failed' : 'queued', finalFailure ? message : null]);
   }
 }
-

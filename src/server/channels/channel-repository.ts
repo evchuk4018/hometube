@@ -30,6 +30,7 @@ type VideoRow = {
   live_status: string | null;
   media_status: VideoSummary['mediaStatus'];
   media_error: string | null;
+  has_background_audio: boolean;
 };
 
 function mapChannel(row: ChannelRow): ChannelSummary {
@@ -64,6 +65,7 @@ function mapVideo(row: VideoRow): VideoSummary {
     liveStatus: row.live_status,
     mediaStatus: row.media_status,
     mediaError: row.media_error,
+    hasBackgroundAudio: row.has_background_audio,
     downloadable: !live && !unavailable
   };
 }
@@ -99,9 +101,11 @@ export async function listChannelVideos(channelId: string, limit = 50, offset = 
   const rows = await query<VideoRow>(`
     SELECT v.id, v.channel_id, c.name AS channel_name, v.title, v.duration_seconds,
       v.upload_date::text, v.view_count::text, v.thumbnail_url, v.web_url,
-      v.availability, v.live_status, v.media_status, v.media_error
+      v.availability, v.live_status, v.media_status, v.media_error,
+      (m.audio_relative_path IS NOT NULL) AS has_background_audio
     FROM videos v
     JOIN channels c ON c.id = v.channel_id
+    LEFT JOIN media_files m ON m.video_id = v.id
     WHERE v.channel_id = $1
     ORDER BY v.upload_date DESC NULLS LAST, v.created_at DESC, v.id DESC
     LIMIT $2 OFFSET $3
@@ -113,8 +117,12 @@ export async function getVideo(videoId: string): Promise<VideoSummary | null> {
   const rows = await query<VideoRow>(`
     SELECT v.id, v.channel_id, c.name AS channel_name, v.title, v.duration_seconds,
       v.upload_date::text, v.view_count::text, v.thumbnail_url, v.web_url,
-      v.availability, v.live_status, v.media_status, v.media_error
-    FROM videos v JOIN channels c ON c.id = v.channel_id WHERE v.id = $1
+      v.availability, v.live_status, v.media_status, v.media_error,
+      (m.audio_relative_path IS NOT NULL) AS has_background_audio
+    FROM videos v
+    JOIN channels c ON c.id = v.channel_id
+    LEFT JOIN media_files m ON m.video_id = v.id
+    WHERE v.id = $1
   `, [videoId]);
   return rows[0] ? mapVideo(rows[0]) : null;
 }

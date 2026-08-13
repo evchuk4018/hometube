@@ -1,10 +1,9 @@
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { extractBackgroundAudio, type BackgroundAudio } from './background-audio';
+import { mediaCodecs, probeMedia } from './media-probe';
 import { resolveMediaPath } from './media-path';
 import { runProcess } from '@/server/youtube/process-runner';
-
-type ProbeStream = { codec_type?: string; codec_name?: string; width?: number; height?: number };
-type ProbeResult = { streams?: ProbeStream[]; format?: { format_name?: string } };
 
 export type DownloadedMedia = {
   relativePath: string;
@@ -13,6 +12,7 @@ export type DownloadedMedia = {
   height: number | null;
   videoCodec: string | null;
   audioCodec: string | null;
+  backgroundAudio: BackgroundAudio | null;
 };
 
 export function buildDownloadArgs(videoId: string, outputTemplate: string): string[] {
@@ -34,20 +34,6 @@ export function parseDownloadProgress(line: string): number | null {
   return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : null;
 }
 
-async function probe(filePath: string): Promise<ProbeResult> {
-  const result = await runProcess(process.env.FFPROBE_COMMAND ?? 'ffprobe', [
-    '-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', filePath
-  ]);
-  return JSON.parse(result.stdout) as ProbeResult;
-}
-
-function codecs(result: ProbeResult): { video: ProbeStream | undefined; audio: ProbeStream | undefined } {
-  return {
-    video: result.streams?.find((stream) => stream.codec_type === 'video'),
-    audio: result.streams?.find((stream) => stream.codec_type === 'audio')
-  };
-}
-
 export async function downloadVideo(
   jobId: string,
   videoId: string,
@@ -57,6 +43,8 @@ export async function downloadVideo(
   const incomingRelative = path.join('.incoming', jobId);
   const incoming = resolveMediaPath(incomingRelative, root);
   const outputTemplate = path.join(incoming, 'source.%(ext)s');
+  const stagingPath = resolveMediaPath(`videos/.${videoId}.${jobId}.part`, root);
+  const audioStagingPath = resolveMediaPath(`videos/.${videoId}.${jobId}.audio.part.m4a`, root);
   await mkdir(incoming, { recursive: true });
 
   try {
@@ -75,15 +63,14 @@ export async function downloadVideo(
     const sourceName = candidates.find((name) => name.startsWith('source.'));
     if (!sourceName) throw new Error('The downloader did not produce a media file.');
     const source = path.join(incoming, sourceName);
-    const initialProbe = await probe(source);
-    const initial = codecs(initialProbe);
+    const initialProbe = await probeMedia(source);
+    const initial = mediaCodecs(initialProbe);
     if (!initial.video) throw new Error('The downloaded file does not contain video.');
     if ((initial.video.height ?? 0) > 720) throw new Error('The downloaded video exceeds the 720p limit.');
 
     await onProgress(90, 'Preparing for iPhone playback');
     const relativePath = `videos/${videoId}.mp4`;
     const finalPath = resolveMediaPath(relativePath, root);
-    const stagingPath = resolveMediaPath(`videos/.${videoId}.${jobId}.part`, root);
     await mkdir(path.dirname(finalPath), { recursive: true });
 
     const directlyCompatible = initial.video.codec_name === 'h264' && (!initial.audio || initial.audio.codec_name === 'aac');
@@ -99,12 +86,25 @@ export async function downloadVideo(
     ffmpegArgs.push('-movflags', '+faststart', '-f', 'mp4', stagingPath);
     await runProcess(process.env.FFMPEG_COMMAND ?? 'ffmpeg', ffmpegArgs);
 
-    const finalProbe = await probe(stagingPath);
-    const final = codecs(finalProbe);
+    const finalProbe = await probeMedia(stagingPath);
+    const final = mediaCodecs(finalProbe);
     if (!final.video || final.video.codec_name !== 'h264' || (final.video.height ?? 0) > 720) {
       throw new Error('The prepared media failed compatibility validation.');
     }
     if (final.audio && final.audio.codec_name !== 'aac') throw new Error('The prepared audio is not AAC.');
+
+    let backgroundAudio: BackgroundAudio | null = null;
+    if (final.audio) {
+      await onProgress(96, 'Preparing background audio');
+      const audioRelativePath = `videos/${videoId}.m4a`;
+      const audioSizeBytes = await extractBackgroundAudio(stagingPath, audioStagingPath);
+      await rename(audioStagingPath, resolveMediaPath(audioRelativePath, root));
+      backgroundAudio = {
+        relativePath: audioRelativePath,
+        sizeBytes: audioSizeBytes,
+        contentType: 'audio/mp4'
+      };
+    }
 
     await rename(stagingPath, finalPath);
     const fileStat = await stat(finalPath);
@@ -114,9 +114,12 @@ export async function downloadVideo(
       width: final.video.width ?? null,
       height: final.video.height ?? null,
       videoCodec: final.video.codec_name ?? null,
-      audioCodec: final.audio?.codec_name ?? null
+      audioCodec: final.audio?.codec_name ?? null,
+      backgroundAudio
     };
   } finally {
     await rm(incoming, { recursive: true, force: true }).catch(() => undefined);
+    await rm(stagingPath, { force: true }).catch(() => undefined);
+    await rm(audioStagingPath, { force: true }).catch(() => undefined);
   }
 }
