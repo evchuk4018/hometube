@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import os from 'node:os';
 import { pool } from '@/server/db/client';
-import { claimNextJob, failJob } from '@/server/jobs/job-repository';
+import { claimNextJob, failJob, scheduleDueJobs } from '@/server/jobs/job-repository';
 import { handleJob, reflectJobFailure } from './job-handlers';
 
 const workerId = `${os.hostname()}:${process.pid}`;
@@ -9,6 +9,7 @@ const pollMs = Number(process.env.WORKER_POLL_MS ?? 1500);
 const port = Number(process.env.WORKER_PORT ?? 4000);
 let stopping = false;
 let activeJobId: string | null = null;
+let lastMaintenanceAt = 0;
 
 const server = createServer((request, response) => {
   if (request.url !== '/health') {
@@ -23,6 +24,10 @@ server.listen(port, '0.0.0.0', () => console.log(`HomeTube worker ${workerId} li
 
 async function loop(): Promise<void> {
   while (!stopping) {
+    if (Date.now() - lastMaintenanceAt >= 60_000) {
+      lastMaintenanceAt = Date.now();
+      await scheduleDueJobs().catch((error) => console.error('Unable to schedule maintenance', error));
+    }
     const job = await claimNextJob(workerId).catch((error) => {
       console.error('Unable to claim a job', error);
       return null;
@@ -60,4 +65,3 @@ async function shutdown(): Promise<void> {
 process.on('SIGTERM', () => void shutdown());
 process.on('SIGINT', () => void shutdown());
 void loop();
-

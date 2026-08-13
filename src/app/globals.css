@@ -25,6 +25,53 @@ button, input { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; text-decoration: none; }
 svg { display: block; }
+.app-page-with-nav { padding-bottom: calc(92px + var(--safe-bottom)) !important; }
+.app-header { display: flex; align-items: center; min-height: 54px; }
+.bottom-nav {
+  position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: calc(66px + var(--safe-bottom)); padding: 6px max(14px, calc((100vw - 520px) / 2)) var(--safe-bottom);
+  border-top: 1px solid rgba(255,255,255,.1); background: rgba(9, 9, 10, .94); backdrop-filter: blur(18px);
+}
+.bottom-nav a { display: grid; place-content: center; justify-items: center; gap: 3px; color: #868990; font-size: 11px; font-weight: 700; }
+.bottom-nav a.active { color: var(--text); }
+.bottom-nav svg { width: 23px; height: 23px; }
+
+.feed-page, .channels-page { width: min(100%, 1280px); margin: 0 auto; padding: calc(18px + var(--safe-top)) 20px 0; }
+.feed-page .home-brand { margin: 0; font-size: 21px; }
+.home-feed { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 34px 18px; padding-top: 22px; }
+.feed-card { min-width: 0; }
+.feed-card .thumbnail-wrap img { object-fit: cover; }
+.feed-card-copy { padding: 11px 3px 0; }
+.feed-card h2 { display: -webkit-box; overflow: hidden; margin: 0 0 7px; font-size: 16px; line-height: 1.3; letter-spacing: -.02em; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.feed-card p { margin: 3px 0; color: var(--muted); font-size: 13px; }
+.feed-status { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.feed-status span { padding: 4px 7px; border-radius: 6px; background: #1c1d20; color: #b8bac0; font-size: 11px; font-weight: 700; }
+.watch-progress-bar { position: absolute; right: auto; bottom: 0; left: 0; height: 3px; background: var(--red); }
+.feed-empty { display: grid; min-height: 68dvh; place-content: center; justify-items: center; padding: 30px; text-align: center; }
+.feed-empty > svg { width: 66px; color: #5a2024; }
+.feed-empty h2 { margin: 22px 0 8px; letter-spacing: -.035em; }
+.feed-empty p { max-width: 420px; margin: 0; color: var(--muted); line-height: 1.5; }
+.empty-action { display: inline-flex; align-items: center; margin-top: 22px; }
+
+.channels-intro { width: min(100%, 760px); margin: 32px auto 0; }
+.channels-intro h1 { margin: 0 0 28px; font-size: clamp(40px, 8vw, 68px); letter-spacing: -.06em; }
+.subscribed-channels { overflow: hidden; width: min(100%, 760px); margin: 42px auto 0; border: 1px solid var(--border); border-radius: 17px; background: rgba(15, 16, 18, .85); }
+.subscribed-channel { display: flex; align-items: center; gap: 14px; min-height: 78px; padding: 11px 16px; border-bottom: 1px solid var(--border); }
+.subscribed-channel:last-child { border-bottom: 0; }
+.subscribed-channel:hover { background: var(--surface-raised); }
+.subscribed-channel > span:nth-child(2) { display: grid; gap: 4px; min-width: 0; }
+.subscribed-channel strong, .subscribed-channel small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subscribed-channel small { color: var(--muted); }
+.subscribed-channel .small-avatar { position: relative; overflow: hidden; width: 56px; height: 56px; }
+.subscribed-channel .small-avatar img { object-fit: cover; }
+.channels-empty { padding: 32px; text-align: center; }
+.channels-empty p { margin: 0 0 6px; font-weight: 800; }
+.channels-empty span { color: var(--muted); font-size: 14px; }
+
+.subscribe-button, .subscribed-button { min-height: 39px; padding: 0 16px; border: 0; border-radius: 20px; font-weight: 800; cursor: pointer; }
+.subscribe-button { background: #f2f2f2; color: #080808; }
+.subscribed-button { background: #282a2f; color: #e6e6e8; }
+.channel-identity .subscribe-button, .channel-identity .subscribed-button { margin-left: auto; }
 
 .home-page { width: min(100%, 1080px); margin: 0 auto; padding: calc(72px + var(--safe-top)) 20px calc(56px + var(--safe-bottom)); }
 .home-hero { width: min(100%, 760px); margin: 0 auto; text-align: center; }
@@ -106,6 +153,12 @@ progress::-moz-progress-bar { background: var(--red); border-radius: 10px; }
 .not-found a, .watch-unavailable a { color: #ff6d72; font-weight: 700; }
 
 .watch-page { min-height: 100dvh; background: #000; }
+.watch-download-state, .download-poster { width: 100%; aspect-ratio: 16 / 9; }
+.download-poster { display: grid; place-items: center; background-color: #0d0d0d; background-position: center; background-size: cover; }
+.download-waiting { width: min(82%, 430px); text-align: center; }
+.download-waiting h1 { margin: 0 0 10px; font-size: clamp(21px, 5vw, 32px); letter-spacing: -.04em; }
+.download-waiting p, .download-waiting > span { color: #bbb; font-size: 14px; }
+.download-waiting progress { height: 7px; margin: 18px 0 8px; }
 .player-shell { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
 .player-shell video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .background-audio-player video { pointer-events: none; }
@@ -115,8 +168,9 @@ progress::-moz-progress-bar { background: var(--red); border-radius: 10px; }
 .watch-metadata { padding: 20px 18px calc(24px + var(--safe-bottom)); border-top: 1px solid #171717; }
 .watch-metadata h1 { margin: 0 0 10px; font-size: clamp(19px, 4.5vw, 25px); line-height: 1.25; letter-spacing: -.025em; }
 .watch-metadata a { color: #aaa; font-size: 15px; font-weight: 700; }
+.watch-channel-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 
-@media (max-width: 900px) { .video-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .video-grid, .home-feed { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 620px) {
   body { background: var(--background); }
   .home-page { padding-inline: 16px; }
@@ -127,6 +181,11 @@ progress::-moz-progress-bar { background: var(--red); border-radius: 10px; }
   .channel-header, .channel-identity, .import-progress, .error-banner { margin-inline: 14px; }
   .channel-identity { padding-top: 30px; }
   .video-grid { grid-template-columns: 1fr; gap: 31px; }
+  .feed-page, .channels-page { padding-inline: 0; }
+  .feed-page .app-header, .channels-page .app-header, .channels-intro { margin-inline: 14px; }
+  .home-feed { grid-template-columns: 1fr; gap: 30px; padding-top: 12px; }
+  .feed-card-copy { padding-inline: 14px; }
+  .subscribed-channels { border-right: 0; border-left: 0; border-radius: 0; }
   .thumbnail-wrap { border-radius: 0; }
   .video-card-body { padding-inline: 14px; }
 }
@@ -135,6 +194,8 @@ progress::-moz-progress-bar { background: var(--red); border-radius: 10px; }
   .watch-page { position: fixed; inset: 0; width: 100vw; height: 100dvh; overflow: hidden; }
   .watch-page .player-shell { width: 100vw; height: 100dvh; aspect-ratio: auto; }
   .watch-metadata { display: none; }
+  .watch-page { padding-bottom: 0 !important; }
+  body:has(.watch-page) .bottom-nav { display: none; }
 }
 
 @media (display-mode: standalone) {

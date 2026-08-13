@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { PwaRegistration } from '@/components/pwa-registration';
 import { basePath } from '@/lib/app-path';
+import { BottomNavigation } from '@/components/bottom-navigation';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -16,6 +17,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body><PwaRegistration />{children}</body></html>;
+  return <html lang="en"><body><PwaRegistration />{children}<BottomNavigation /></body></html>;
 }
-

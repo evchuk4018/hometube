@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
-import { query, transaction } from '@/server/db/client';
+import { query } from '@/server/db/client';
 import type { ChannelSummary, VideoSummary } from '@/protocol/schemas';
 
 type ChannelRow = {
@@ -14,9 +14,12 @@ type ChannelRow = {
   import_error: string | null;
   video_count: string;
   ready_count: string;
+  source: ChannelSummary['source'];
+  is_subscribed: boolean;
+  trial_status: ChannelSummary['trialStatus'];
 };
 
-type VideoRow = {
+export type VideoRow = {
   id: string;
   channel_id: string;
   channel_name: string;
@@ -31,6 +34,10 @@ type VideoRow = {
   media_status: VideoSummary['mediaStatus'];
   media_error: string | null;
   has_background_audio: boolean;
+  watch_state: VideoSummary['watchState'];
+  playback_position_seconds: string;
+  playback_duration_seconds: string | null;
+  watch_percentage: string;
 };
 
 function mapChannel(row: ChannelRow): ChannelSummary {
@@ -44,11 +51,14 @@ function mapChannel(row: ChannelRow): ChannelSummary {
     importStatus: row.import_status,
     importError: row.import_error,
     videoCount: Number(row.video_count),
-    readyCount: Number(row.ready_count)
+    readyCount: Number(row.ready_count),
+    source: row.source,
+    subscribed: row.is_subscribed,
+    trialStatus: row.trial_status
   };
 }
 
-function mapVideo(row: VideoRow): VideoSummary {
+export function mapVideo(row: VideoRow): VideoSummary {
   const live = row.live_status === 'is_live' || row.live_status === 'is_upcoming';
   const unavailable = ['private', 'premium_only', 'subscriber_only', 'unavailable'].includes(row.availability);
   return {
@@ -66,30 +76,100 @@ function mapVideo(row: VideoRow): VideoSummary {
     mediaStatus: row.media_status,
     mediaError: row.media_error,
     hasBackgroundAudio: row.has_background_audio,
-    downloadable: !live && !unavailable
+    downloadable: !live && !unavailable,
+    watchState: row.watch_state,
+    playbackPositionSeconds: Number(row.playback_position_seconds),
+    playbackDurationSeconds: row.playback_duration_seconds === null ? null : Number(row.playback_duration_seconds),
+    watchPercentage: Number(row.watch_percentage)
   };
 }
 
 const channelSelect = `
   SELECT c.id, c.youtube_channel_id, c.source_url, c.name, c.handle, c.thumbnail_url,
-    c.import_status, c.import_error,
+    c.import_status, c.import_error, c.source, c.is_subscribed, c.trial_status,
     count(v.id)::text AS video_count,
     count(v.id) FILTER (WHERE v.media_status = 'ready')::text AS ready_count
   FROM channels c
   LEFT JOIN videos v ON v.channel_id = c.id
 `;
 
-export async function replaceSearchChannel(sourceUrl: string, name: string): Promise<ChannelSummary> {
-  await transaction(async (client) => {
-    await client.query('DELETE FROM channels');
-    await client.query(`
-      INSERT INTO channels (id, source_url, name)
-      VALUES ($1, $2, $3)
-    `, [randomUUID(), sourceUrl, name]);
-  });
+export async function upsertSubscribedChannel(sourceUrl: string, name: string): Promise<ChannelSummary> {
+  await query(`
+    INSERT INTO channels (id, source_url, name, source, is_subscribed, trial_status)
+    VALUES ($1, $2, $3, 'user_added', true, 'none')
+    ON CONFLICT (source_url) DO UPDATE SET
+      is_subscribed = true,
+      trial_status = CASE WHEN channels.source = 'user_added' THEN 'none' ELSE channels.trial_status END,
+      updated_at = now()
+  `, [randomUUID(), sourceUrl, name]);
   const channel = await getChannel(sourceUrl, 'source_url');
   if (!channel) throw new Error('Channel was not created');
   return channel;
+}
+
+export async function createAiTrialChannel(
+  sourceUrl: string,
+  youtubeChannelId: string | null,
+  name: string,
+  reason: string | null
+): Promise<ChannelSummary | null> {
+  const inserted = await query<{ id: string }>(`
+    INSERT INTO channels (
+      id, source_url, youtube_channel_id, name, source, is_subscribed, trial_status, discovered_at, discovery_reason
+    ) VALUES ($1, $2, $3, $4, 'ai_recommendation', false, 'active', now(), $5)
+    ON CONFLICT (source_url) DO NOTHING
+    RETURNING id
+  `, [randomUUID(), sourceUrl, youtubeChannelId, name, reason]);
+  return inserted[0] ? getChannel(inserted[0].id) : null;
+}
+
+export async function hasKnownChannel(sourceUrl: string, youtubeChannelId: string | null): Promise<boolean> {
+  const rows = await query<{ known: boolean }>(`
+    SELECT EXISTS (
+      SELECT 1 FROM channels
+      WHERE source_url = $1 OR ($2::text IS NOT NULL AND youtube_channel_id = $2)
+    ) AS known
+  `, [sourceUrl, youtubeChannelId]);
+  return rows[0]?.known ?? false;
+}
+
+export async function listSubscribedChannels(): Promise<ChannelSummary[]> {
+  const rows = await query<ChannelRow>(`
+    ${channelSelect}
+    WHERE c.is_subscribed = true
+    GROUP BY c.id
+    ORDER BY c.name, c.created_at
+  `);
+  return rows.map(mapChannel);
+}
+
+export async function setChannelSubscription(channelId: string, subscribed: boolean): Promise<ChannelSummary | null> {
+  await query(`UPDATE channels SET is_subscribed = $2, updated_at = now() WHERE id = $1`, [channelId, subscribed]);
+  return getChannel(channelId);
+}
+
+export async function listKnownChannelUrls(): Promise<string[]> {
+  const rows = await query<{ source_url: string }>(`
+    SELECT source_url FROM channels
+    UNION
+    SELECT source_url FROM discovery_candidates WHERE source_url IS NOT NULL
+    ORDER BY source_url
+  `);
+  return rows.map((row) => row.source_url);
+}
+
+export async function listDiscoveryContextChannels(limit = 10): Promise<Array<{ name: string; handle: string | null; sourceUrl: string }>> {
+  return query(`
+    SELECT c.name, c.handle, c.source_url AS "sourceUrl"
+    FROM channels c
+    LEFT JOIN videos v ON v.channel_id = c.id
+    GROUP BY c.id
+    ORDER BY
+      COALESCE(sum(v.watch_percentage * power(0.5, extract(epoch FROM (now() - v.last_watched_at)) / 2592000))
+        FILTER (WHERE v.last_watched_at IS NOT NULL), 0) DESC,
+      c.is_subscribed DESC, c.updated_at DESC
+    LIMIT $1
+  `, [limit]);
 }
 
 export async function getChannel(value: string, field: 'id' | 'source_url' = 'id'): Promise<ChannelSummary | null> {
@@ -102,7 +182,9 @@ export async function listChannelVideos(channelId: string, limit = 50, offset = 
     SELECT v.id, v.channel_id, c.name AS channel_name, v.title, v.duration_seconds,
       v.upload_date::text, v.view_count::text, v.thumbnail_url, v.web_url,
       v.availability, v.live_status, v.media_status, v.media_error,
-      (m.audio_relative_path IS NOT NULL) AS has_background_audio
+      (m.audio_relative_path IS NOT NULL) AS has_background_audio,
+      v.watch_state, v.playback_position_seconds::text,
+      v.playback_duration_seconds::text, v.watch_percentage::text
     FROM videos v
     JOIN channels c ON c.id = v.channel_id
     LEFT JOIN media_files m ON m.video_id = v.id
@@ -118,7 +200,9 @@ export async function getVideo(videoId: string): Promise<VideoSummary | null> {
     SELECT v.id, v.channel_id, c.name AS channel_name, v.title, v.duration_seconds,
       v.upload_date::text, v.view_count::text, v.thumbnail_url, v.web_url,
       v.availability, v.live_status, v.media_status, v.media_error,
-      (m.audio_relative_path IS NOT NULL) AS has_background_audio
+      (m.audio_relative_path IS NOT NULL) AS has_background_audio,
+      v.watch_state, v.playback_position_seconds::text,
+      v.playback_duration_seconds::text, v.watch_percentage::text
     FROM videos v
     JOIN channels c ON c.id = v.channel_id
     LEFT JOIN media_files m ON m.video_id = v.id
@@ -146,6 +230,30 @@ export type ImportedVideo = {
   availability: string;
   liveStatus: string | null;
 };
+
+export async function pruneImportedCatalog(
+  client: PoolClient,
+  channelId: string,
+  source: ChannelSummary['source'],
+  subscribed: boolean
+): Promise<void> {
+  const recentLimit = source === 'ai_recommendation' && !subscribed ? 10 : 100;
+  const popularLimit = 10;
+  await client.query(`
+    DELETE FROM videos
+    WHERE channel_id = $1
+      AND media_status = 'not_downloaded'
+      AND watch_state = 'unwatched'
+      AND id NOT IN (
+        SELECT id FROM videos WHERE channel_id = $1
+        ORDER BY upload_date DESC NULLS LAST, created_at DESC LIMIT $2
+      )
+      AND id NOT IN (
+        SELECT id FROM videos WHERE channel_id = $1
+        ORDER BY view_count DESC NULLS LAST, upload_date DESC NULLS LAST LIMIT $3
+      )
+  `, [channelId, recentLimit, popularLimit]);
+}
 
 export async function updateImportedChannel(client: PoolClient, channelId: string, data: ImportedChannel): Promise<void> {
   await client.query(`

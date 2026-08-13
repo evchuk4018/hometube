@@ -117,6 +117,45 @@ export function VideoPlayer({ video }: { video: VideoSummary }) {
     };
   }, [video]);
 
+  useEffect(() => {
+    const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;
+    if (!player) return;
+    let lastSavedAt = 0;
+    const save = (keepalive = false) => {
+      if (!Number.isFinite(player.duration) || player.duration <= 0) return;
+      lastSavedAt = Date.now();
+      void fetch(appPath(`/api/videos/${video.id}/progress`), {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ positionSeconds: player.currentTime, durationSeconds: player.duration }), keepalive
+      }).catch(() => undefined);
+    };
+    const restore = () => {
+      if (video.playbackPositionSeconds > 0 && video.playbackPositionSeconds < player.duration - 5) {
+        player.currentTime = video.playbackPositionSeconds;
+      }
+    };
+    const periodicallySave = () => {
+      if (Date.now() - lastSavedAt >= 10_000) save();
+    };
+    const saveEvent = () => save();
+    const saveOnExit = () => save(true);
+    player.addEventListener('loadedmetadata', restore, { once: true });
+    player.addEventListener('timeupdate', periodicallySave);
+    player.addEventListener('pause', saveEvent);
+    player.addEventListener('seeked', saveEvent);
+    player.addEventListener('ended', saveEvent);
+    window.addEventListener('pagehide', saveOnExit);
+    return () => {
+      player.removeEventListener('loadedmetadata', restore);
+      player.removeEventListener('timeupdate', periodicallySave);
+      player.removeEventListener('pause', saveEvent);
+      player.removeEventListener('seeked', saveEvent);
+      player.removeEventListener('ended', saveEvent);
+      window.removeEventListener('pagehide', saveOnExit);
+      save(true);
+    };
+  }, [video.hasBackgroundAudio, video.id, video.playbackPositionSeconds]);
+
   function enterFullscreen() {
     const shell = shellRef.current;
     const player = videoRef.current as WebkitVideo | null;

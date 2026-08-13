@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hometube-shell-v1';
+const CACHE_NAME = 'hometube-shell-v2';
 const BASE_PATH = new URL('./', self.registration.scope).pathname.replace(/\/$/, '');
 const SHELL = [`${BASE_PATH}/`, `${BASE_PATH}/manifest.webmanifest`, `${BASE_PATH}/icon.svg`, `${BASE_PATH}/maskable-icon.svg`];
 
@@ -21,4 +21,3 @@ self.addEventListener('fetch', (event) => {
   }
   event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
 });
-

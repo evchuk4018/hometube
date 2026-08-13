@@ -1,14 +1,25 @@
 import { channelLabelFromUrl, normalizeYouTubeChannelUrl } from '@/domain/youtube-url';
 import type { ChannelPagePayload } from '@/protocol/schemas';
 import { NotFoundError } from '@/server/protocol/http';
-import { getChannel, listChannelVideos, replaceSearchChannel } from './channel-repository';
+import { getChannel, listChannelVideos, listSubscribedChannels, setChannelSubscription, upsertSubscribedChannel } from './channel-repository';
 import { enqueueChannelImport, getActiveChannelJob } from '@/server/jobs/job-repository';
 
 export async function addChannel(input: string): Promise<{ channelId: string; jobId: string }> {
   const sourceUrl = normalizeYouTubeChannelUrl(input);
-  const channel = await replaceSearchChannel(sourceUrl, channelLabelFromUrl(sourceUrl));
+  const channel = await upsertSubscribedChannel(sourceUrl, channelLabelFromUrl(sourceUrl));
   const job = await enqueueChannelImport(channel.id);
   return { channelId: channel.id, jobId: job.id };
+}
+
+export async function getSubscribedChannels() {
+  return listSubscribedChannels();
+}
+
+export async function updateSubscription(channelId: string, subscribed: boolean) {
+  const channel = await setChannelSubscription(channelId, subscribed);
+  if (!channel) throw new NotFoundError('Channel not found.');
+  if (subscribed) await enqueueChannelImport(channel.id);
+  return channel;
 }
 
 export async function refreshChannel(channelId: string): Promise<{ channelId: string; jobId: string }> {

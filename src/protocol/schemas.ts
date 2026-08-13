@@ -9,7 +9,7 @@ export const mediaStatusSchema = z.enum(['not_downloaded', 'queued', 'downloadin
 
 export const jobSummarySchema = z.object({
   id: z.string().uuid(),
-  type: z.enum(['import_channel', 'download_video']),
+  type: z.enum(['import_channel', 'download_video', 'discover_channels']),
   status: jobStatusSchema,
   progress: z.number().min(0).max(100),
   stage: z.string(),
@@ -26,7 +26,10 @@ export const channelSummarySchema = z.object({
   importStatus: z.enum(['queued', 'importing', 'ready', 'failed']),
   importError: z.string().nullable(),
   videoCount: z.number().int().nonnegative(),
-  readyCount: z.number().int().nonnegative()
+  readyCount: z.number().int().nonnegative(),
+  source: z.enum(['user_added', 'ai_recommendation']),
+  subscribed: z.boolean(),
+  trialStatus: z.enum(['none', 'active', 'evaluated', 'dismissed'])
 });
 
 export const videoSummarySchema = z.object({
@@ -44,8 +47,27 @@ export const videoSummarySchema = z.object({
   mediaStatus: mediaStatusSchema,
   mediaError: z.string().nullable(),
   hasBackgroundAudio: z.boolean(),
-  downloadable: z.boolean()
+  downloadable: z.boolean(),
+  watchState: z.enum(['unwatched', 'in_progress', 'watched']),
+  playbackPositionSeconds: z.number().nonnegative(),
+  playbackDurationSeconds: z.number().nonnegative().nullable(),
+  watchPercentage: z.number().min(0).max(1)
 });
+
+export const feedQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(40)
+});
+
+export const feedImpressionsRequestSchema = z.object({
+  videoIds: z.array(z.string().min(1)).min(1).max(100)
+});
+
+export const playbackProgressRequestSchema = z.object({
+  positionSeconds: z.number().finite().nonnegative(),
+  durationSeconds: z.number().finite().positive()
+});
+
+export const subscriptionRequestSchema = z.object({ subscribed: z.boolean() });
 
 export type JobSummary = z.infer<typeof jobSummarySchema>;
 export type ChannelSummary = z.infer<typeof channelSummarySchema>;
@@ -57,3 +79,5 @@ export type ChannelPagePayload = {
   total: number;
   activeJob: JobSummary | null;
 };
+
+export type FeedPayload = { videos: VideoSummary[] };

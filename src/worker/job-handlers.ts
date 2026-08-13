@@ -1,11 +1,13 @@
 import { transaction, query } from '@/server/db/client';
-import { getChannel, setChannelImportState, updateImportedChannel, upsertImportedVideo } from '@/server/channels/channel-repository';
+import { getChannel, pruneImportedCatalog, setChannelImportState, updateImportedChannel, upsertImportedVideo } from '@/server/channels/channel-repository';
 import { completeJob, updateJobProgress, type ClaimedJob } from '@/server/jobs/job-repository';
 import { importChannelCatalog } from '@/server/youtube/yt-dlp-adapter';
 import { downloadVideo } from '@/server/media/download-adapter';
+import { runChannelDiscovery } from '@/server/discovery/discovery-service';
 
 export async function handleJob(job: ClaimedJob): Promise<void> {
   if (job.type === 'import_channel') return handleChannelImport(job);
+  if (job.type === 'discover_channels') return handleChannelDiscovery(job);
   return handleVideoDownload(job);
 }
 
@@ -15,7 +17,7 @@ async function handleChannelImport(job: ClaimedJob): Promise<void> {
   if (!channel) throw new Error('Channel no longer exists.');
   await setChannelImportState(channel.id, 'importing');
 
-  const count = await importChannelCatalog(channel.sourceUrl, async (entry, importedCount) => {
+  const count = await importChannelCatalog(channel.sourceUrl, channel.source, channel.subscribed, async (entry, importedCount) => {
     await transaction(async (client) => {
       await updateImportedChannel(client, channel.id, entry.channel);
       await upsertImportedVideo(client, channel.id, entry.video);
@@ -27,8 +29,17 @@ async function handleChannelImport(job: ClaimedJob): Promise<void> {
   });
 
   if (count === 0) throw new Error('No public videos were found for this channel.');
+  await transaction(async (client) => {
+    await pruneImportedCatalog(client, channel.id, channel.source, channel.subscribed);
+  });
   await setChannelImportState(channel.id, 'ready');
   await completeJob(job.id, `Found ${count} videos`);
+}
+
+async function handleChannelDiscovery(job: ClaimedJob): Promise<void> {
+  await updateJobProgress(job.id, 10, 'Finding channels');
+  const count = await runChannelDiscovery();
+  await completeJob(job.id, `Added ${count} trial channels`);
 }
 
 async function handleVideoDownload(job: ClaimedJob): Promise<void> {
