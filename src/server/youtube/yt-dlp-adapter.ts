@@ -93,21 +93,26 @@ export async function importChannelCatalog(
     { url: `${sourceUrl}/videos?view=0&sort=p&flow=grid`, limit: 10 }
   ];
   for (const target of targets) {
-    await runProcess(process.env.YTDLP_COMMAND ?? 'yt-dlp', buildCatalogArgs(target.url, target.limit), {
-      onStdoutLine: async (line) => {
-        let parsed: YtDlpEntry;
-        try {
-          parsed = JSON.parse(line) as YtDlpEntry;
-        } catch {
-          return;
+    try {
+      await runProcess(process.env.YTDLP_COMMAND ?? 'yt-dlp', buildCatalogArgs(target.url, target.limit), {
+        onStdoutLine: async (line) => {
+          let parsed: YtDlpEntry;
+          try {
+            parsed = JSON.parse(line) as YtDlpEntry;
+          } catch {
+            return;
+          }
+          const entry = mapCatalogEntry(parsed);
+          if (!entry || seen.has(entry.video.id)) return;
+          seen.add(entry.video.id);
+          importedCount += 1;
+          await onEntry(entry, importedCount);
         }
-        const entry = mapCatalogEntry(parsed);
-        if (!entry || seen.has(entry.video.id)) return;
-        seen.add(entry.video.id);
-        importedCount += 1;
-        await onEntry(entry, importedCount);
-      }
-    });
+      });
+    } catch {
+      // Videos, Shorts, Streams, and popular shelves are independently optional.
+      // A channel is valid as long as at least one shelf yields public videos.
+    }
   }
   return importedCount;
 }

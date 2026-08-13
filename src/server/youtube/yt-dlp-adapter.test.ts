@@ -33,3 +33,9 @@ test('maps a yt-dlp entry to stable local metadata', () => {
   assert.equal(mapped?.video.thumbnailUrl, 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg');
   assert.equal(mapped?.channel.youtubeChannelId, 'UC123');
 });
+
+test('catalog targets remain independent so optional shelves can fail safely', () => {
+  const args = buildCatalogArgs('https://www.youtube.com/@example/streams', 10);
+  assert.equal(args.at(-1), 'https://www.youtube.com/@example/streams');
+  assert.equal(args[args.indexOf('--playlist-end') + 1], '10');
+});
