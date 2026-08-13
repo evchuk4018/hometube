@@ -75,8 +75,6 @@ services:
     user: "${HOMETUBE_PUID:-1000}:${HOMETUBE_PGID:-1000}"
     volumes:
       - ${HOMETUBE_MEDIA_ROOT:-./data/media}:/media
-    extra_hosts:
-      - "hometube-postgres:${HOMETUBE_POSTGRES_IP:-172.22.0.2}"
     depends_on:
       postgres:
         condition: service_healthy
