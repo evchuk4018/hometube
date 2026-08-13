@@ -7,6 +7,7 @@ test('catalog extraction uses a flat progressive playlist limited to the past we
   assert.ok(args.includes('--flat-playlist'));
   assert.ok(args.includes('--lazy-playlist'));
   assert.ok(args.includes('--dump-json'));
+  assert.equal(args[args.indexOf('--extractor-args') + 1], 'youtubetab:approximate_date');
   assert.equal(args[args.indexOf('--dateafter') + 1], 'now-1week');
   assert.ok(args.includes('--break-on-reject'));
   assert.equal(args[args.indexOf('--js-runtimes') + 1], 'node:/usr/local/bin/node');

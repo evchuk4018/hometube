@@ -28,7 +28,7 @@ export function ChannelEntryForm() {
   }
 
   return (
-    <form className="channel-form" onSubmit={submit}>
+    <form className="channel-form" onSubmit={submit} autoComplete="off">
       <label htmlFor="channel-url">YouTube channel URL</label>
       <div className="channel-form-row">
         <input

@@ -33,9 +33,16 @@ export function buildCatalogArgs(url: string): string[] {
   return [
     '--ignore-config', '--js-runtimes', 'node:/usr/local/bin/node',
     '--flat-playlist', '--lazy-playlist', '--dump-json',
+    '--extractor-args', 'youtubetab:approximate_date',
     '--dateafter', 'now-1week', '--break-on-reject',
     '--ignore-errors', '--no-warnings', '--no-call-home', url
   ];
+}
+
+function recentCutoff(): string {
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - 7);
+  return cutoff.toISOString().slice(0, 10);
 }
 
 function uploadDate(entry: YtDlpEntry): string | null {
@@ -84,6 +91,7 @@ export async function importChannelCatalog(
 ): Promise<number> {
   let importedCount = 0;
   const seen = new Set<string>();
+  const cutoff = recentCutoff();
   for (const catalogUrl of channelCatalogUrls(sourceUrl)) {
     await runProcess(process.env.YTDLP_COMMAND ?? 'yt-dlp', buildCatalogArgs(catalogUrl), {
       onStdoutLine: async (line) => {
@@ -95,6 +103,8 @@ export async function importChannelCatalog(
         }
         const entry = mapCatalogEntry(parsed);
         if (!entry || seen.has(entry.video.id)) return;
+        if (!entry.video.uploadDate) return;
+        if (entry.video.uploadDate < cutoff) return true;
         seen.add(entry.video.id);
         importedCount += 1;
         await onEntry(entry, importedCount);

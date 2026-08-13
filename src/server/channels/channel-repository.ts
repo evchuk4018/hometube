@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
-import { query } from '@/server/db/client';
+import { query, transaction } from '@/server/db/client';
 import type { ChannelSummary, VideoSummary } from '@/protocol/schemas';
 
 type ChannelRow = {
@@ -77,12 +77,14 @@ const channelSelect = `
   LEFT JOIN videos v ON v.channel_id = c.id
 `;
 
-export async function createOrGetChannel(sourceUrl: string, name: string): Promise<ChannelSummary> {
-  await query(`
-    INSERT INTO channels (id, source_url, name)
-    VALUES ($1, $2, $3)
-    ON CONFLICT (source_url) DO UPDATE SET updated_at = now()
-  `, [randomUUID(), sourceUrl, name]);
+export async function replaceSearchChannel(sourceUrl: string, name: string): Promise<ChannelSummary> {
+  await transaction(async (client) => {
+    await client.query('DELETE FROM channels');
+    await client.query(`
+      INSERT INTO channels (id, source_url, name)
+      VALUES ($1, $2, $3)
+    `, [randomUUID(), sourceUrl, name]);
+  });
   const channel = await getChannel(sourceUrl, 'source_url');
   if (!channel) throw new Error('Channel was not created');
   return channel;
@@ -93,11 +95,6 @@ export async function getChannel(value: string, field: 'id' | 'source_url' = 'id
   return rows[0] ? mapChannel(rows[0]) : null;
 }
 
-export async function listRecentChannels(): Promise<ChannelSummary[]> {
-  const rows = await query<ChannelRow>(`${channelSelect} GROUP BY c.id ORDER BY c.updated_at DESC LIMIT 12`);
-  return rows.map(mapChannel);
-}
-
 export async function listChannelVideos(channelId: string, limit = 50, offset = 0): Promise<VideoSummary[]> {
   const rows = await query<VideoRow>(`
     SELECT v.id, v.channel_id, c.name AS channel_name, v.title, v.duration_seconds,
@@ -106,7 +103,7 @@ export async function listChannelVideos(channelId: string, limit = 50, offset = 
     FROM videos v
     JOIN channels c ON c.id = v.channel_id
     WHERE v.channel_id = $1
-    ORDER BY v.upload_date DESC NULLS LAST, v.created_at DESC
+    ORDER BY v.upload_date DESC NULLS LAST, v.created_at DESC, v.id DESC
     LIMIT $2 OFFSET $3
   `, [channelId, limit, offset]);
   return rows.map(mapVideo);
@@ -185,4 +182,3 @@ export async function setChannelImportState(
       updated_at = now() WHERE id = $1
   `, [channelId, status, error]);
 }
-

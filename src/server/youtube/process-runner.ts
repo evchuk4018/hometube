@@ -7,7 +7,7 @@ export async function runProcess(
   command: string,
   args: string[],
   options: {
-    onStdoutLine?: (line: string) => void | Promise<void>;
+    onStdoutLine?: (line: string) => void | boolean | Promise<void | boolean>;
     onStderrLine?: (line: string) => void | Promise<void>;
   } = {}
 ): Promise<ProcessResult> {
@@ -16,12 +16,22 @@ export async function runProcess(
     let stdout = '';
     let stderr = '';
     let callbackQueue = Promise.resolve();
+    let stopRequested = false;
 
     const stdoutLines = readline.createInterface({ input: child.stdout });
     const stderrLines = readline.createInterface({ input: child.stderr });
     stdoutLines.on('line', (line) => {
       stdout += `${line}\n`;
-      if (options.onStdoutLine) callbackQueue = callbackQueue.then(() => options.onStdoutLine?.(line));
+      if (options.onStdoutLine) {
+        callbackQueue = callbackQueue.then(async () => {
+          if (stopRequested) return;
+          const shouldStop = await options.onStdoutLine?.(line);
+          if (shouldStop && !stopRequested) {
+            stopRequested = true;
+            child.kill('SIGTERM');
+          }
+        });
+      }
     });
     stderrLines.on('line', (line) => {
       stderr += `${line}\n`;
@@ -31,7 +41,7 @@ export async function runProcess(
     child.once('error', reject);
     child.once('close', (code) => {
       void callbackQueue.then(() => {
-        if (code === 0) resolve({ stdout, stderr });
+        if (code === 0 || stopRequested) resolve({ stdout, stderr });
         else reject(new Error(`${command} exited with code ${code}: ${lastUsefulLine(stderr)}`));
       }).catch(reject);
     });
@@ -42,4 +52,3 @@ function lastUsefulLine(value: string): string {
   const line = value.trim().split(/\r?\n/).filter(Boolean).at(-1) ?? 'Unknown process error';
   return line.replace(/https?:\/\/\S+/g, '[URL]').slice(0, 500);
 }
-

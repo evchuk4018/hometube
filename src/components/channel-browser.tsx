@@ -89,7 +89,7 @@ export function ChannelBrowser({ initialPayload }: { initialPayload: ChannelPage
         <div className="channel-avatar" aria-hidden="true">{payload.channel.name.slice(0, 1).toUpperCase()}</div>
         <div>
           <h1>{payload.channel.name}</h1>
-          <p>{payload.channel.handle ?? `${payload.channel.videoCount.toLocaleString()} videos`}</p>
+          <p>{payload.channel.handle ?? `${payload.channel.videoCount.toLocaleString()} videos`} · last 7 days</p>
         </div>
       </section>
 
@@ -177,4 +177,3 @@ function formatDate(value: string | null): string {
 function compactNumber(value: number): string {
   return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 }
-

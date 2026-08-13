@@ -1,12 +1,12 @@
 import { channelLabelFromUrl, normalizeYouTubeChannelUrl } from '@/domain/youtube-url';
 import type { ChannelPagePayload } from '@/protocol/schemas';
 import { NotFoundError } from '@/server/protocol/http';
-import { createOrGetChannel, getChannel, listChannelVideos } from './channel-repository';
+import { getChannel, listChannelVideos, replaceSearchChannel } from './channel-repository';
 import { enqueueChannelImport, getActiveChannelJob } from '@/server/jobs/job-repository';
 
 export async function addChannel(input: string): Promise<{ channelId: string; jobId: string }> {
   const sourceUrl = normalizeYouTubeChannelUrl(input);
-  const channel = await createOrGetChannel(sourceUrl, channelLabelFromUrl(sourceUrl));
+  const channel = await replaceSearchChannel(sourceUrl, channelLabelFromUrl(sourceUrl));
   const job = await enqueueChannelImport(channel.id);
   return { channelId: channel.id, jobId: job.id };
 }
@@ -27,4 +27,3 @@ export async function getChannelPage(channelId: string, limit = 50, offset = 0):
   ]);
   return { channel, videos, total: channel.videoCount, activeJob };
 }
-
