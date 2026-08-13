@@ -4,6 +4,6 @@ coverage/
 data/
 .env
 .env.local
+deployment.env
 *.log
 *.tsbuildinfo
-
