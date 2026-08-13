@@ -8,7 +8,10 @@ export function databaseUrl(): string {
   return value;
 }
 
-export const pool = globalForDatabase.hometubePool ?? new Pool({ connectionString: databaseUrl() });
+const buildSafeConnectionString = process.env.DATABASE_URL
+  ?? 'postgresql://hometube-build:hometube-build@127.0.0.1:1/hometube-build';
+
+export const pool = globalForDatabase.hometubePool ?? new Pool({ connectionString: buildSafeConnectionString });
 
 if (process.env.NODE_ENV !== 'production') globalForDatabase.hometubePool = pool;
 
@@ -31,4 +34,3 @@ export async function transaction<T>(run: (client: PoolClient) => Promise<T>): P
     client.release();
   }
 }
-
