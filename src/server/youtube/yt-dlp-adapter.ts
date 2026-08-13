@@ -33,6 +33,7 @@ export function buildCatalogArgs(url: string): string[] {
   return [
     '--ignore-config', '--js-runtimes', 'node:/usr/local/bin/node',
     '--flat-playlist', '--lazy-playlist', '--dump-json',
+    '--dateafter', 'now-1week', '--break-on-reject',
     '--ignore-errors', '--no-warnings', '--no-call-home', url
   ];
 }

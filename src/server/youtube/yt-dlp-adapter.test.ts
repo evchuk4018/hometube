@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildCatalogArgs, mapCatalogEntry } from './yt-dlp-adapter';
 
-test('catalog extraction uses a flat progressive playlist', () => {
+test('catalog extraction uses a flat progressive playlist limited to the past week', () => {
   const args = buildCatalogArgs('https://www.youtube.com/@example/videos');
   assert.ok(args.includes('--flat-playlist'));
   assert.ok(args.includes('--lazy-playlist'));
   assert.ok(args.includes('--dump-json'));
+  assert.equal(args[args.indexOf('--dateafter') + 1], 'now-1week');
+  assert.ok(args.includes('--break-on-reject'));
   assert.equal(args[args.indexOf('--js-runtimes') + 1], 'node:/usr/local/bin/node');
   assert.equal(args.at(-1), 'https://www.youtube.com/@example/videos');
 });
