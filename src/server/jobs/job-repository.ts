@@ -73,6 +73,7 @@ export async function scheduleDueJobs(now = new Date()): Promise<void> {
   const subscribedMs = positiveNumber(process.env.CHANNEL_REFRESH_SUBSCRIBED_MS, 6 * 60 * 60 * 1000);
   const trialMs = positiveNumber(process.env.CHANNEL_REFRESH_TRIAL_MS, 24 * 60 * 60 * 1000);
   const discoveryMs = positiveNumber(process.env.CHANNEL_DISCOVERY_INTERVAL_MS, 7 * 24 * 60 * 60 * 1000);
+  const discoveryRetryMs = positiveNumber(process.env.CHANNEL_DISCOVERY_RETRY_MS, 6 * 60 * 60 * 1000);
   await query(`
     INSERT INTO jobs (id, type, channel_id)
     SELECT gen_random_uuid(), 'import_channel', c.id
@@ -85,9 +86,12 @@ export async function scheduleDueJobs(now = new Date()): Promise<void> {
   const due = await query<{ due: boolean }>(`
     SELECT EXISTS (SELECT 1 FROM channels)
       AND NOT EXISTS (
-      SELECT 1 FROM discovery_runs WHERE started_at >= $1
-    ) AS due
-  `, [new Date(now.getTime() - discoveryMs)]);
+        SELECT 1 FROM discovery_runs WHERE status = 'ready' AND started_at >= $1
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM discovery_runs WHERE started_at >= $2
+      ) AS due
+  `, [new Date(now.getTime() - discoveryMs), new Date(now.getTime() - discoveryRetryMs)]);
   if (due[0]?.due) await enqueueChannelDiscovery();
 }
 

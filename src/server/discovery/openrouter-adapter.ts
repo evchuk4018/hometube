@@ -41,7 +41,7 @@ export async function recommendChannels(
   excludedUrls: string[],
   count: number
 ): Promise<{ candidates: ChannelCandidate[]; model: string }> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = normalizeEnvironmentSecret(process.env.OPENROUTER_API_KEY);
   if (!apiKey) throw new Error('OPENROUTER_API_KEY is required for channel discovery.');
   const model = process.env.OPENROUTER_DISCOVERY_MODEL ?? 'openrouter/auto';
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -84,6 +84,15 @@ export async function recommendChannels(
     : raw?.map((part) => part.text ?? '').join('') ?? '';
   const parsed = recommendationsSchema.parse(JSON.parse(content));
   return { candidates: parsed.channels, model: body.model ?? model };
+}
+
+export function normalizeEnvironmentSecret(value: string | undefined): string {
+  const trimmed = value?.trim() ?? '';
+  if (trimmed.length >= 2 && (
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+    || (trimmed.startsWith('"') && trimmed.endsWith('"'))
+  )) return trimmed.slice(1, -1).trim();
+  return trimmed;
 }
 
 export function deduplicateCandidates(candidates: ChannelCandidate[], excludedUrls: string[]): ChannelCandidate[] {
