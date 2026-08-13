@@ -4,6 +4,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 const nextConfig = {
   output: 'standalone',
   basePath,
+  trailingSlash: true,
   turbopack: { root: process.cwd() },
   images: {
     remotePatterns: [
