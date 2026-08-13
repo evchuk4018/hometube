@@ -7,9 +7,6 @@ services:
       POSTGRES_PASSWORD: ${HOMETUBE_POSTGRES_PASSWORD:-change-me}
     volumes:
       - ${HOMETUBE_POSTGRES_DATA:-./data/postgres}:/var/lib/postgresql/data
-    networks:
-      default:
-        ipv4_address: ${HOMETUBE_POSTGRES_IP:-172.22.0.2}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -91,9 +88,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-networks:
-  default:
-    ipam:
-      config:
-        - subnet: ${HOMETUBE_NETWORK_SUBNET:-172.22.0.0/16}
