@@ -18,7 +18,8 @@ export type DownloadedMedia = {
 export function buildDownloadArgs(videoId: string, outputTemplate: string): string[] {
   if (!/^[A-Za-z0-9_-]{6,20}$/.test(videoId)) throw new Error('Invalid YouTube video ID');
   return [
-    '--ignore-config', '--no-playlist', '--newline', '--no-warnings', '--no-call-home',
+    '--ignore-config', '--js-runtimes', 'node:/usr/local/bin/node',
+    '--no-playlist', '--newline', '--no-warnings', '--no-call-home',
     '--format', 'bv*[height<=720][ext=mp4]+ba[ext=m4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]',
     '--format-sort', 'res:720,vcodec:h264,acodec:aac,ext:mp4:m4a',
     '--merge-output-format', 'mp4', '--output', outputTemplate,
@@ -119,4 +120,3 @@ export async function downloadVideo(
     await rm(incoming, { recursive: true, force: true }).catch(() => undefined);
   }
 }
-

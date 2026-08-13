@@ -7,7 +7,18 @@ test('catalog extraction uses a flat progressive playlist', () => {
   assert.ok(args.includes('--flat-playlist'));
   assert.ok(args.includes('--lazy-playlist'));
   assert.ok(args.includes('--dump-json'));
+  assert.equal(args[args.indexOf('--js-runtimes') + 1], 'node:/usr/local/bin/node');
   assert.equal(args.at(-1), 'https://www.youtube.com/@example/videos');
+});
+
+test('uses playlist identity from flat channel entries', () => {
+  const mapped = mapCatalogEntry({
+    id: 'abcdefghijk', title: 'A video', playlist_channel: 'Example Channel',
+    playlist_channel_id: 'UCexample', playlist_uploader_id: '@example'
+  });
+  assert.equal(mapped?.channel.name, 'Example Channel');
+  assert.equal(mapped?.channel.youtubeChannelId, 'UCexample');
+  assert.equal(mapped?.channel.handle, '@example');
 });
 
 test('maps a yt-dlp entry to stable local metadata', () => {
@@ -20,4 +31,3 @@ test('maps a yt-dlp entry to stable local metadata', () => {
   assert.equal(mapped?.video.thumbnailUrl, 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg');
   assert.equal(mapped?.channel.youtubeChannelId, 'UC123');
 });
-

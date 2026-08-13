@@ -21,13 +21,18 @@ type YtDlpEntry = {
   uploader_id?: string;
   uploader?: string;
   channel_url?: string;
+  playlist_uploader?: string;
+  playlist_uploader_id?: string;
+  playlist_channel?: string;
+  playlist_channel_id?: string;
 };
 
 export type CatalogEntry = { channel: ImportedChannel; video: ImportedVideo };
 
 export function buildCatalogArgs(url: string): string[] {
   return [
-    '--ignore-config', '--flat-playlist', '--lazy-playlist', '--dump-json',
+    '--ignore-config', '--js-runtimes', 'node:/usr/local/bin/node',
+    '--flat-playlist', '--lazy-playlist', '--dump-json',
     '--ignore-errors', '--no-warnings', '--no-call-home', url
   ];
 }
@@ -47,11 +52,12 @@ function bestThumbnail(entry: YtDlpEntry): string | null {
 
 export function mapCatalogEntry(entry: YtDlpEntry): CatalogEntry | null {
   if (!entry.id || !/^[A-Za-z0-9_-]{6,20}$/.test(entry.id)) return null;
-  const channelName = entry.channel ?? entry.uploader ?? null;
-  const handle = entry.uploader_id?.startsWith('@') ? entry.uploader_id : null;
+  const channelName = entry.channel ?? entry.uploader ?? entry.playlist_channel ?? entry.playlist_uploader ?? null;
+  const uploaderId = entry.uploader_id ?? entry.playlist_uploader_id;
+  const handle = uploaderId?.startsWith('@') ? uploaderId : null;
   return {
     channel: {
-      youtubeChannelId: entry.channel_id ?? null,
+      youtubeChannelId: entry.channel_id ?? entry.playlist_channel_id ?? null,
       name: channelName,
       handle,
       thumbnailUrl: null
@@ -96,4 +102,3 @@ export async function importChannelCatalog(
   }
   return importedCount;
 }
-
