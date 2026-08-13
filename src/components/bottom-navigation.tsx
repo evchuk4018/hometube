@@ -9,11 +9,11 @@ export function BottomNavigation() {
   const homeActive = !channelsActive && !pathname.includes('/watch/');
   return (
     <nav className="bottom-nav" aria-label="Main navigation">
-      <Link href="/channels" aria-current={channelsActive ? 'page' : undefined} className={channelsActive ? 'active' : ''}>
-        <ChannelsIcon /><span>Channels</span>
-      </Link>
       <Link href="/" aria-current={homeActive ? 'page' : undefined} className={homeActive ? 'active' : ''}>
         <HomeIcon /><span>Home</span>
+      </Link>
+      <Link href="/channels" aria-current={channelsActive ? 'page' : undefined} className={channelsActive ? 'active' : ''}>
+        <ChannelsIcon /><span>Channels</span>
       </Link>
     </nav>
   );
