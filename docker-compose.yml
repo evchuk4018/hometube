@@ -7,6 +7,9 @@ services:
       POSTGRES_PASSWORD: ${HOMETUBE_POSTGRES_PASSWORD:-change-me}
     volumes:
       - ${HOMETUBE_POSTGRES_DATA:-./data/postgres}:/var/lib/postgresql/data
+    networks:
+      default:
+        ipv4_address: ${HOMETUBE_POSTGRES_IP:-172.22.0.2}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -75,6 +78,8 @@ services:
     user: "${HOMETUBE_PUID:-1000}:${HOMETUBE_PGID:-1000}"
     volumes:
       - ${HOMETUBE_MEDIA_ROOT:-./data/media}:/media
+    extra_hosts:
+      - "hometube-postgres:${HOMETUBE_POSTGRES_IP:-172.22.0.2}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,3 +91,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${HOMETUBE_NETWORK_SUBNET:-172.22.0.0/16}

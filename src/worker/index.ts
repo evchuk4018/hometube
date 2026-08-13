@@ -10,14 +10,15 @@ const port = Number(process.env.WORKER_PORT ?? 4000);
 let stopping = false;
 let activeJobId: string | null = null;
 let lastMaintenanceAt = 0;
+let databaseHealthy = false;
 
 const server = createServer((request, response) => {
   if (request.url !== '/health') {
     response.writeHead(404).end();
     return;
   }
-  response.writeHead(200, { 'content-type': 'application/json' });
-  response.end(JSON.stringify({ status: 'healthy', workerId, activeJobId }));
+  response.writeHead(databaseHealthy ? 200 : 503, { 'content-type': 'application/json' });
+  response.end(JSON.stringify({ status: databaseHealthy ? 'healthy' : 'unhealthy', workerId, activeJobId }));
 });
 
 server.listen(port, '0.0.0.0', () => console.log(`HomeTube worker ${workerId} listening on ${port}`));
@@ -26,12 +27,23 @@ async function loop(): Promise<void> {
   while (!stopping) {
     if (Date.now() - lastMaintenanceAt >= 60_000) {
       lastMaintenanceAt = Date.now();
-      await scheduleDueJobs().catch((error) => console.error('Unable to schedule maintenance', error));
+      await scheduleDueJobs()
+        .then(() => { databaseHealthy = true; })
+        .catch((error) => {
+          databaseHealthy = false;
+          console.error('Unable to schedule maintenance', error);
+        });
     }
-    const job = await claimNextJob(workerId).catch((error) => {
-      console.error('Unable to claim a job', error);
-      return null;
-    });
+    const job = await claimNextJob(workerId)
+      .then((claimed) => {
+        databaseHealthy = true;
+        return claimed;
+      })
+      .catch((error) => {
+        databaseHealthy = false;
+        console.error('Unable to claim a job', error);
+        return null;
+      });
     if (!job) {
       await new Promise((resolve) => setTimeout(resolve, pollMs));
       continue;
