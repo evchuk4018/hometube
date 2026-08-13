@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${HOMETUBE_POSTGRES_DB:-hometube}
+      POSTGRES_USER: ${HOMETUBE_POSTGRES_USER:-hometube}
+      POSTGRES_PASSWORD: ${HOMETUBE_POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - ${HOMETUBE_POSTGRES_DATA:-./data/postgres}:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      DATABASE_URL: postgresql://${HOMETUBE_POSTGRES_USER:-hometube}:${HOMETUBE_POSTGRES_PASSWORD:-change-me}@postgres:5432/${HOMETUBE_POSTGRES_DB:-hometube}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["./node_modules/.bin/tsx", "scripts/migrate.ts"]
+    profiles: ["ops"]
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/hometube}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      DATABASE_URL: postgresql://${HOMETUBE_POSTGRES_USER:-hometube}:${HOMETUBE_POSTGRES_PASSWORD:-change-me}@postgres:5432/${HOMETUBE_POSTGRES_DB:-hometube}
+      HOMETUBE_MEDIA_ROOT: /media
+      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/hometube}
+    volumes:
+      - ${HOMETUBE_MEDIA_ROOT:-./data/media}:/media:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${HOMETUBE_WEB_PORT:-3010}:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/hometube/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${HOMETUBE_POSTGRES_USER:-hometube}:${HOMETUBE_POSTGRES_PASSWORD:-change-me}@postgres:5432/${HOMETUBE_POSTGRES_DB:-hometube}
+      HOMETUBE_MEDIA_ROOT: /media
+      WORKER_PORT: 4000
+      WORKER_POLL_MS: ${WORKER_POLL_MS:-1500}
+      YTDLP_COMMAND: yt-dlp
+      FFMPEG_COMMAND: ffmpeg
+      FFPROBE_COMMAND: ffprobe
+    volumes:
+      - ${HOMETUBE_MEDIA_ROOT:-./data/media}:/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    cpus: 1.5
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+

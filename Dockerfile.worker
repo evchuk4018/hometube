@@ -1,0 +1,20 @@
+FROM node:22-bookworm-slim AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM node:22-bookworm-slim AS worker
+WORKDIR /app
+ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 python3-pip ca-certificates \
+  && python3 -m pip install --break-system-packages --no-cache-dir yt-dlp \
+  && rm -rf /var/lib/apt/lists/*
+RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs --create-home worker
+COPY --from=deps /app/node_modules ./node_modules
+COPY --chown=worker:nodejs package.json tsconfig.json ./
+COPY --chown=worker:nodejs src ./src
+COPY --chown=worker:nodejs scripts ./scripts
+COPY --chown=worker:nodejs migrations ./migrations
+USER worker
+EXPOSE 4000
+CMD ["./node_modules/.bin/tsx", "src/worker/index.ts"]
