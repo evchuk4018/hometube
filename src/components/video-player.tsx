@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { needsMediaSync } from '@/domain/media-sync';
+import { getResumePosition } from '@/domain/playback-progress';
 import { appPath } from '@/lib/app-path';
 import type { VideoSummary } from '@/protocol/schemas';
 
@@ -121,6 +122,7 @@ export function VideoPlayer({ video }: { video: VideoSummary }) {
     const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;
     if (!player) return;
     let lastSavedAt = 0;
+    let restored = false;
     const save = (keepalive = false) => {
       if (!Number.isFinite(player.duration) || player.duration <= 0) return;
       lastSavedAt = Date.now();
@@ -130,8 +132,11 @@ export function VideoPlayer({ video }: { video: VideoSummary }) {
       }).catch(() => undefined);
     };
     const restore = () => {
-      if (video.playbackPositionSeconds > 0 && video.playbackPositionSeconds < player.duration - 5) {
-        player.currentTime = video.playbackPositionSeconds;
+      if (restored || player.readyState < 1 || !Number.isFinite(player.duration) || player.duration <= 0) return;
+      const resumePosition = getResumePosition(video.playbackPositionSeconds, player.duration, video.watchState);
+      restored = true;
+      if (resumePosition > 0) {
+        try { player.currentTime = resumePosition; } catch { /* metadata may still be loading */ }
       }
     };
     const periodicallySave = () => {
@@ -139,22 +144,30 @@ export function VideoPlayer({ video }: { video: VideoSummary }) {
     };
     const saveEvent = () => save();
     const saveOnExit = () => save(true);
-    player.addEventListener('loadedmetadata', restore, { once: true });
+    player.addEventListener('loadedmetadata', restore);
+    player.addEventListener('durationchange', restore);
+    restore();
     player.addEventListener('timeupdate', periodicallySave);
     player.addEventListener('pause', saveEvent);
     player.addEventListener('seeked', saveEvent);
     player.addEventListener('ended', saveEvent);
+    const saveWhenHidden = () => {
+      if (document.visibilityState === 'hidden') save(true);
+    };
+    document.addEventListener('visibilitychange', saveWhenHidden);
     window.addEventListener('pagehide', saveOnExit);
     return () => {
       player.removeEventListener('loadedmetadata', restore);
+      player.removeEventListener('durationchange', restore);
       player.removeEventListener('timeupdate', periodicallySave);
       player.removeEventListener('pause', saveEvent);
       player.removeEventListener('seeked', saveEvent);
       player.removeEventListener('ended', saveEvent);
+      document.removeEventListener('visibilitychange', saveWhenHidden);
       window.removeEventListener('pagehide', saveOnExit);
       save(true);
     };
-  }, [video.hasBackgroundAudio, video.id, video.playbackPositionSeconds]);
+  }, [video.hasBackgroundAudio, video.id, video.playbackPositionSeconds, video.watchState]);
 
   function enterFullscreen() {
     const shell = shellRef.current;
