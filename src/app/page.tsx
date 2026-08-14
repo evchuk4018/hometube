@@ -1,10 +1,15 @@
 import { FeedBrowser } from '@/components/feed-browser';
 import { BrandMark } from '@/components/channel-browser';
 import { getHomeFeed } from '@/server/feed/feed-service';
+import { getCurrentVideoId } from '@/server/playback/playback-session-repository';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
+  const currentVideoId = await getCurrentVideoId();
+  if (currentVideoId) redirect(`/watch/${currentVideoId}`);
+
   const payload = await getHomeFeed(40);
   return (
     <main className="feed-page app-page-with-nav">

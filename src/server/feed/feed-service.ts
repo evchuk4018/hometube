@@ -12,7 +12,8 @@ export async function addFeedImpressions(videoIds: string[]) {
 }
 
 export async function openVideo(videoId: string) {
-  await recordVideoOpen(videoId);
+  const recorded = await recordVideoOpen(videoId);
+  if (!recorded) throw new NotFoundError('Video not found.');
 }
 
 export async function updatePlaybackProgress(videoId: string, positionSeconds: number, durationSeconds: number) {

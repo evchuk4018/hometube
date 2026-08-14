@@ -1,7 +1,9 @@
-import { query } from '@/server/db/client';
+import { query, transaction } from '@/server/db/client';
 import { playbackState, selectRankedFeed, type RankingCandidate } from '@/domain/feed-ranking';
+import { shouldClearCurrentPlaybackSession } from '@/domain/playback-session';
 import type { VideoSummary } from '@/protocol/schemas';
 import { mapVideo, type VideoRow } from '@/server/channels/channel-repository';
+import { clearCurrentVideoIfMatching, setCurrentVideo } from '@/server/playback/playback-session-repository';
 
 type FeedRow = VideoRow & {
   is_subscribed: boolean;
@@ -77,24 +79,36 @@ export async function recordFeedImpressions(videoIds: string[]): Promise<void> {
   `, [videoIds]);
 }
 
-export async function recordVideoOpen(videoId: string): Promise<void> {
-  await query(`
-    UPDATE videos SET opened_count = opened_count + 1, last_opened_at = now(), updated_at = now()
-    WHERE id = $1
-  `, [videoId]);
+export async function recordVideoOpen(videoId: string): Promise<boolean> {
+  return transaction(async (client) => {
+    const rows = await client.query<{ id: string }>(`
+      UPDATE videos SET opened_count = opened_count + 1, last_opened_at = now(), updated_at = now()
+      WHERE id = $1
+      RETURNING id
+    `, [videoId]);
+    if (!rows.rows[0]) return false;
+    await setCurrentVideo(client, videoId);
+    return true;
+  });
 }
 
 export async function savePlaybackProgress(videoId: string, positionSeconds: number, durationSeconds: number): Promise<VideoSummary['watchState'] | null> {
   const next = playbackState(positionSeconds, durationSeconds);
-  const rows = await query<{ watch_state: VideoSummary['watchState'] }>(`
-      UPDATE videos SET
-        playback_position_seconds = CASE WHEN $4 = 'watched' THEN 0 ELSE $2 END,
-        playback_duration_seconds = $3,
-        watch_percentage = GREATEST(watch_percentage, $5),
-        watch_state = CASE WHEN watch_state = 'watched' THEN 'watched' ELSE $4 END,
-        last_watched_at = now(), updated_at = now()
-      WHERE id = $1
-      RETURNING watch_state
-    `, [videoId, positionSeconds, durationSeconds, next.state, next.percentage]);
-  return rows[0]?.watch_state ?? null;
+  return transaction(async (client) => {
+    const rows = await client.query<{ watch_state: VideoSummary['watchState'] }>(`
+        UPDATE videos SET
+          playback_position_seconds = CASE WHEN $4 = 'watched' THEN 0 ELSE $2 END,
+          playback_duration_seconds = $3,
+          watch_percentage = GREATEST(watch_percentage, $5),
+          watch_state = CASE WHEN watch_state = 'watched' THEN 'watched' ELSE $4 END,
+          last_watched_at = now(), updated_at = now()
+        WHERE id = $1
+        RETURNING watch_state
+      `, [videoId, positionSeconds, durationSeconds, next.state, next.percentage]);
+    const watchState = rows.rows[0]?.watch_state ?? null;
+    if (watchState && shouldClearCurrentPlaybackSession(watchState)) {
+      await clearCurrentVideoIfMatching(client, videoId);
+    }
+    return watchState;
+  });
 }
