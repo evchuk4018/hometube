@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { needsMediaSync } from '@/domain/media-sync';
 import { getResumePosition } from '@/domain/playback-progress';
 import { appPath } from '@/lib/app-path';
@@ -8,10 +8,19 @@ import type { VideoSummary } from '@/protocol/schemas';
 
 type WebkitVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
 
-export function VideoPlayer({ video }: { video: VideoSummary }) {
+export type PlayerControl = { pause: () => void };
+
+export function VideoPlayer({ video, playerControlRef }: { video: VideoSummary; playerControlRef: RefObject<PlayerControl | null> }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;
+    if (!player) return;
+    playerControlRef.current = { pause: () => player.pause() };
+    return () => { playerControlRef.current = null; };
+  }, [video.hasBackgroundAudio, video.id, playerControlRef]);
 
   useEffect(() => {
     if (!video.hasBackgroundAudio) return;

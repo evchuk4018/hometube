@@ -169,6 +169,14 @@ progress::-moz-progress-bar { background: var(--red); border-radius: 10px; }
 .watch-metadata h1 { margin: 0 0 10px; font-size: clamp(19px, 4.5vw, 25px); line-height: 1.25; letter-spacing: -.025em; }
 .watch-metadata a { color: #aaa; font-size: 15px; font-weight: 700; }
 .watch-channel-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.sleep-timer { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.sleep-timer .secondary-button { min-height: 36px; padding: 0 14px; }
+.timer-step-button { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 18px; font-weight: 800; cursor: pointer; }
+.timer-step-button:hover:not(:disabled) { background: var(--surface-raised); }
+.timer-step-button:disabled { cursor: default; opacity: .4; }
+.sleep-timer-value { min-width: 34px; text-align: center; color: #d9d9dc; font-size: 15px; font-weight: 800; }
+.timer-set-button { min-height: 36px; padding: 0 16px; }
+.sleep-timer-countdown { min-width: 58px; color: #d9d9dc; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 900px) { .video-grid, .home-feed { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 620px) {

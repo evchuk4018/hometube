@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { appPath } from '@/lib/app-path';
 import type { JobSummary, VideoSummary } from '@/protocol/schemas';
+import type { PlayerControl } from './video-player';
+import { SleepTimer } from './sleep-timer';
 import { SubscriptionButton } from './subscription-button';
 import { VideoPlayer } from './video-player';
 
@@ -12,6 +14,7 @@ export function WatchExperience({ initialVideo, subscribed }: { initialVideo: Vi
   const [job, setJob] = useState<JobSummary | null>(null);
   const [error, setError] = useState<string | null>(initialVideo.mediaError);
   const startedRef = useRef(false);
+  const playerControlRef = useRef<PlayerControl | null>(null);
 
   useEffect(() => {
     void fetch(appPath(`/api/videos/${video.id}/open`), { method: 'POST' }).catch(() => undefined);
@@ -65,7 +68,7 @@ export function WatchExperience({ initialVideo, subscribed }: { initialVideo: Vi
   return (
     <main className="watch-page app-page-with-nav">
       {video.mediaStatus === 'ready'
-        ? <VideoPlayer video={video} />
+        ? <VideoPlayer video={video} playerControlRef={playerControlRef} />
         : <section className="watch-download-state">
             <div className="download-poster" style={video.thumbnailUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.8)), url(${video.thumbnailUrl})` } : undefined}>
               <div className="download-waiting">
@@ -82,6 +85,7 @@ export function WatchExperience({ initialVideo, subscribed }: { initialVideo: Vi
           <Link href={`/channels/${video.channelId}`}>{video.channelName}</Link>
           <SubscriptionButton channelId={video.channelId} initialSubscribed={subscribed} />
         </div>
+        <SleepTimer playerControlRef={playerControlRef} />
       </section>
     </main>
   );
