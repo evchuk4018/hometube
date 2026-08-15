@@ -14,7 +14,14 @@ type FeedRow = VideoRow & {
 };
 
 export async function listRankedFeed(limit = 40): Promise<VideoSummary[]> {
-  const rows = await query<FeedRow>(`
+  const rows = await listRankedFeedRows();
+  const ids = selectRankedFeed(rankingCandidates(rows), limit);
+  const byId = videoSummaries(rows);
+  return ids.flatMap((id) => byId.get(id) ?? []);
+}
+
+export async function listRankedFeedRows(): Promise<FeedRow[]> {
+  return query<FeedRow>(`
     WITH channel_stats AS (
       SELECT c.id,
         COALESCE(sum(
@@ -52,7 +59,10 @@ export async function listRankedFeed(limit = 40): Promise<VideoSummary[]> {
     )
     SELECT * FROM candidates
   `);
-  const candidates: RankingCandidate[] = rows.map((row) => ({
+}
+
+export function rankingCandidates(rows: FeedRow[]): RankingCandidate[] {
+  return rows.map((row) => ({
     videoId: row.id,
     channelId: row.channel_id,
     trial: !row.is_subscribed && row.trial_status === 'active',
@@ -64,9 +74,10 @@ export async function listRankedFeed(limit = 40): Promise<VideoSummary[]> {
     channelWeightedWatch: Number(row.channel_weighted_watch),
     channelEvidence: Number(row.channel_evidence)
   }));
-  const ids = selectRankedFeed(candidates, limit);
-  const byId = new Map(rows.map((row) => [row.id, mapVideo(row)]));
-  return ids.flatMap((id) => byId.get(id) ?? []);
+}
+
+export function videoSummaries(rows: FeedRow[]): Map<string, VideoSummary> {
+  return new Map(rows.map((row) => [row.id, mapVideo(row)]));
 }
 
 export async function recordFeedImpressions(videoIds: string[]): Promise<void> {

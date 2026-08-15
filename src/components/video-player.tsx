@@ -10,7 +10,13 @@ type WebkitVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
 
 export type PlayerControl = { pause: () => void };
 
-export function VideoPlayer({ video, playerControlRef }: { video: VideoSummary; playerControlRef: RefObject<PlayerControl | null> }) {
+export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, autoplayTick }: {
+  video: VideoSummary;
+  playerControlRef: RefObject<PlayerControl | null>;
+  onEnded?: () => void;
+  onNextTrack?: () => void;
+  autoplayTick?: number;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -21,6 +27,28 @@ export function VideoPlayer({ video, playerControlRef }: { video: VideoSummary; 
     playerControlRef.current = { pause: () => player.pause() };
     return () => { playerControlRef.current = null; };
   }, [video.hasBackgroundAudio, video.id, playerControlRef]);
+
+  useEffect(() => {
+    const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;
+    if (!player || !onEnded) return;
+    player.addEventListener('ended', onEnded);
+    return () => player.removeEventListener('ended', onEnded);
+  }, [video.hasBackgroundAudio, video.id, onEnded]);
+
+  useEffect(() => {
+    const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;
+    if (!player || !autoplayTick) return;
+    const attempt = () => {
+      if (player.paused && !player.ended) void player.play().catch(() => undefined);
+    };
+    attempt();
+    player.addEventListener('canplay', attempt);
+    player.addEventListener('loadedmetadata', attempt);
+    return () => {
+      player.removeEventListener('canplay', attempt);
+      player.removeEventListener('loadedmetadata', attempt);
+    };
+  }, [video.hasBackgroundAudio, video.id, autoplayTick]);
 
   useEffect(() => {
     if (!video.hasBackgroundAudio) return;
@@ -98,6 +126,7 @@ export function VideoPlayer({ video, playerControlRef }: { video: VideoSummary; 
       ['seekforward', (details) => { player.currentTime = Math.min(player.duration || Infinity, player.currentTime + (details.seekOffset ?? 10)); }],
       ['seekto', (details) => { if (details.seekTime !== undefined) player.currentTime = details.seekTime; }]
     ];
+    if (onNextTrack) handlers.push(['nexttrack', () => onNextTrack()]);
     for (const [action, handler] of handlers) {
       try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* unsupported action */ }
     }
@@ -125,7 +154,7 @@ export function VideoPlayer({ video, playerControlRef }: { video: VideoSummary; 
         try { navigator.mediaSession.setActionHandler(action, null); } catch { /* unsupported action */ }
       }
     };
-  }, [video]);
+  }, [video, onNextTrack]);
 
   useEffect(() => {
     const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;

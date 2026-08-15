@@ -69,9 +69,19 @@ export const playbackProgressRequestSchema = z.object({
 
 export const subscriptionRequestSchema = z.object({ subscribed: z.boolean() });
 
+export const queueEntrySchema = z.object({
+  video: videoSummarySchema,
+  job: jobSummarySchema.nullable()
+});
+
+export const queueUpdateRequestSchema = z.object({
+  currentVideoId: z.string().min(1)
+});
+
 export type JobSummary = z.infer<typeof jobSummarySchema>;
 export type ChannelSummary = z.infer<typeof channelSummarySchema>;
 export type VideoSummary = z.infer<typeof videoSummarySchema>;
+export type QueueEntry = z.infer<typeof queueEntrySchema>;
 
 export type ChannelPagePayload = {
   channel: ChannelSummary;

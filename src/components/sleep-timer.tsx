@@ -6,7 +6,11 @@ import type { PlayerControl } from './video-player';
 
 type TimerState = 'idle' | 'picking' | 'counting';
 
-export function SleepTimer({ playerControlRef }: { playerControlRef: RefObject<PlayerControl | null> }) {
+export function SleepTimer({ playerControlRef, onExpire, onRearm }: {
+  playerControlRef: RefObject<PlayerControl | null>;
+  onExpire?: () => void;
+  onRearm?: () => void;
+}) {
   const [state, setState] = useState<TimerState>('idle');
   const [minutes, setMinutes] = useState(DEFAULT_MINUTES);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
@@ -22,12 +26,13 @@ export function SleepTimer({ playerControlRef }: { playerControlRef: RefObject<P
         endAtRef.current = 0;
         setState('idle');
         setMinutes(DEFAULT_MINUTES);
+        onExpire?.();
       }
     };
     tick();
     const interval = window.setInterval(tick, 250);
     return () => window.clearInterval(interval);
-  }, [state, playerControlRef]);
+  }, [state, playerControlRef, onExpire]);
 
   if (state === 'idle') {
     return (
@@ -41,7 +46,7 @@ export function SleepTimer({ playerControlRef }: { playerControlRef: RefObject<P
     return (
       <div className="sleep-timer">
         <span className="sleep-timer-countdown" aria-live="polite">{formatCountdown(remainingSeconds)}</span>
-        <button className="secondary-button" type="button" onClick={() => { endAtRef.current = 0; setState('idle'); setMinutes(DEFAULT_MINUTES); }}>Cancel</button>
+        <button className="secondary-button" type="button" onClick={() => { endAtRef.current = 0; setState('idle'); setMinutes(DEFAULT_MINUTES); onRearm?.(); }}>Cancel</button>
       </div>
     );
   }
@@ -55,6 +60,7 @@ export function SleepTimer({ playerControlRef }: { playerControlRef: RefObject<P
         endAtRef.current = Date.now() + minutes * 60 * 1000;
         setRemainingSeconds(minutes * 60);
         setState('counting');
+        onRearm?.();
       }}>Set</button>
     </div>
   );

@@ -113,6 +113,16 @@ export async function getActiveChannelJob(channelId: string): Promise<JobSummary
   return rows[0] ? mapJob(rows[0]) : null;
 }
 
+export async function getActiveVideoDownloadJobs(videoIds: string[]): Promise<Array<{ job: JobSummary; videoId: string }>> {
+  if (videoIds.length === 0) return [];
+  const rows = await query<JobRow>(`
+    SELECT * FROM jobs
+    WHERE type = 'download_video' AND video_id = ANY($1::text[])
+      AND status IN ('queued', 'running')
+  `, [videoIds]);
+  return rows.map((row) => ({ job: mapJob(row), videoId: row.video_id ?? '' }));
+}
+
 export async function claimNextJob(workerId: string): Promise<ClaimedJob | null> {
   return transaction(async (client) => {
     const result = await client.query<JobRow>(`

@@ -178,6 +178,23 @@ progress::-moz-progress-bar { background: var(--red); border-radius: 10px; }
 .timer-set-button { min-height: 36px; padding: 0 16px; }
 .sleep-timer-countdown { min-width: 58px; color: #d9d9dc; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
+.autoplay-queue { margin-top: 18px; padding-top: 16px; border-top: 1px solid #171717; }
+.autoplay-queue-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.autoplay-queue-title { margin: 0; color: #aaa; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.autoplay-queue-count { color: #555; font-size: 12px; }
+.autoplay-queue-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 7px 0; }
+.autoplay-queue-entry { border: 0; border-radius: 12px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.autoplay-queue-entry:hover { background: var(--surface-raised); }
+.autoplay-queue-thumb { position: relative; flex: 0 0 auto; width: 96px; height: 54px; overflow: hidden; border-radius: 8px; background: #0d0d0d; }
+.autoplay-queue-thumb img { object-fit: cover; }
+.autoplay-queue-copy { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 3px; }
+.autoplay-queue-video-title { overflow: hidden; font-size: 14px; font-weight: 700; line-height: 1.3; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
+.autoplay-queue-meta { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.autoplay-queue-now-label { flex: 0 0 auto; color: #ff6d72; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.autoplay-queue-status { flex: 0 0 auto; color: var(--muted); font-size: 11px; font-weight: 700; }
+.autoplay-queue-status.ready { color: #4ade80; }
+.autoplay-queue-status.failed { color: #ff6d72; }
+
 @media (max-width: 900px) { .video-grid, .home-feed { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 620px) {
   body { background: var(--background); }
