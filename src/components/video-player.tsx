@@ -122,11 +122,17 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
     const handlers: Array<[MediaSessionAction, MediaSessionActionHandler]> = [
       ['play', () => { void player.play(); }],
       ['pause', () => player.pause()],
-      ['seekbackward', (details) => { player.currentTime = Math.max(0, player.currentTime - (details.seekOffset ?? 10)); }],
-      ['seekforward', (details) => { player.currentTime = Math.min(player.duration || Infinity, player.currentTime + (details.seekOffset ?? 10)); }],
       ['seekto', (details) => { if (details.seekTime !== undefined) player.currentTime = details.seekTime; }]
     ];
-    if (onNextTrack) handlers.push(['nexttrack', () => onNextTrack()]);
+    if (onNextTrack) {
+      const skipToNext = () => onNextTrack();
+      handlers.push(['seekbackward', skipToNext], ['seekforward', skipToNext], ['nexttrack', skipToNext]);
+    } else {
+      handlers.push(
+        ['seekbackward', (details) => { player.currentTime = Math.max(0, player.currentTime - (details.seekOffset ?? 10)); }],
+        ['seekforward', (details) => { player.currentTime = Math.min(player.duration || Infinity, player.currentTime + (details.seekOffset ?? 10)); }]
+      );
+    }
     for (const [action, handler] of handlers) {
       try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* unsupported action */ }
     }
