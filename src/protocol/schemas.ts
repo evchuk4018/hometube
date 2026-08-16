@@ -62,6 +62,10 @@ export const feedImpressionsRequestSchema = z.object({
   videoIds: z.array(z.string().min(1)).min(1).max(100)
 });
 
+export const feedRefreshRequestSchema = z.object({
+  videoIds: z.array(z.string().min(1)).max(2)
+});
+
 export const playbackProgressRequestSchema = z.object({
   positionSeconds: z.number().finite().nonnegative(),
   durationSeconds: z.number().finite().positive()

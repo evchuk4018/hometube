@@ -1,5 +1,5 @@
 import { query, transaction } from '@/server/db/client';
-import { playbackState, selectRankedFeed, type RankingCandidate } from '@/domain/feed-ranking';
+import { playbackState, REFRESH_PENALTY, selectRankedFeed, type RankingCandidate } from '@/domain/feed-ranking';
 import { shouldClearCurrentPlaybackSession } from '@/domain/playback-session';
 import type { VideoSummary } from '@/protocol/schemas';
 import { mapVideo, type VideoRow } from '@/server/channels/channel-repository';
@@ -11,6 +11,7 @@ type FeedRow = VideoRow & {
   channel_view_max: string;
   channel_weighted_watch: string;
   channel_evidence: string;
+  refresh_penalty: string;
 };
 
 export async function listRankedFeed(limit = 40): Promise<VideoSummary[]> {
@@ -47,11 +48,13 @@ export async function listRankedFeedRows(): Promise<FeedRow[]> {
         c.is_subscribed, c.trial_status,
         COALESCE(max(v.view_count) OVER (PARTITION BY v.channel_id), 0)::text AS channel_view_max,
         cs.weighted_watch::text AS channel_weighted_watch,
-        cs.evidence::text AS channel_evidence
+        cs.evidence::text AS channel_evidence,
+        COALESCE(fp.penalty * power(0.5, extract(epoch FROM (now() - fp.updated_at)) / 2592000), 0)::text AS refresh_penalty
       FROM videos v
       JOIN channels c ON c.id = v.channel_id
       JOIN channel_stats cs ON cs.id = c.id
       LEFT JOIN media_files m ON m.video_id = v.id
+      LEFT JOIN feed_refresh_penalties fp ON fp.video_id = v.id
       WHERE v.watch_state <> 'watched'
         AND (c.is_subscribed = true OR c.trial_status = 'active')
         AND v.availability NOT IN ('private', 'premium_only', 'subscriber_only', 'unavailable')
@@ -73,7 +76,8 @@ export function rankingCandidates(rows: FeedRow[]): RankingCandidate[] {
     viewCount: row.view_count === null ? null : Number(row.view_count),
     channelViewMax: Number(row.channel_view_max),
     channelWeightedWatch: Number(row.channel_weighted_watch),
-    channelEvidence: Number(row.channel_evidence)
+    channelEvidence: Number(row.channel_evidence),
+    refreshPenalty: Number(row.refresh_penalty)
   }));
 }
 
@@ -89,6 +93,16 @@ export async function recordFeedImpressions(videoIds: string[]): Promise<void> {
       impression_count = feed_impressions.impression_count + 1,
       last_impressed_at = now()
   `, [videoIds]);
+}
+
+export async function applyFeedRefreshPenalties(videoIds: string[]): Promise<void> {
+  await query(`
+    INSERT INTO feed_refresh_penalties (video_id, penalty)
+    SELECT id, $2 FROM videos WHERE id = ANY($1::text[])
+    ON CONFLICT (video_id) DO UPDATE SET
+      penalty = feed_refresh_penalties.penalty + EXCLUDED.penalty,
+      updated_at = now()
+  `, [videoIds, REFRESH_PENALTY]);
 }
 
 export async function recordVideoOpen(videoId: string): Promise<boolean> {

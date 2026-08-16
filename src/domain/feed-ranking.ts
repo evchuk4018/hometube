@@ -1,3 +1,5 @@
+export const REFRESH_PENALTY = 0.07;
+
 export type RankingCandidate = {
   videoId: string;
   channelId: string;
@@ -10,6 +12,7 @@ export type RankingCandidate = {
   channelViewMax: number;
   channelWeightedWatch: number;
   channelEvidence: number;
+  refreshPenalty: number;
 };
 
 const CHANNEL_PRIOR = 0.35;
@@ -34,7 +37,8 @@ export function rankScore(candidate: RankingCandidate, now = new Date()): number
     ? 0
     : Math.min(1, Math.max(0, (candidate.watchPercentage - MOSTLY_WATCHED_THRESHOLD) / MOSTLY_WATCHED_SPAN));
   return 0.5 * engagement + 0.25 * recency + 0.2 * view + (candidate.subscribed ? 0.05 : 0)
-    - MOSTLY_WATCHED_PENALTY * mostlyWatched;
+    - MOSTLY_WATCHED_PENALTY * mostlyWatched
+    - candidate.refreshPenalty;
 }
 
 export function selectRankedFeed(

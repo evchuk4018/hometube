@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { playbackState, rankScore, selectRankedFeed, type RankingCandidate } from './feed-ranking';
+import { playbackState, rankScore, REFRESH_PENALTY, selectRankedFeed, type RankingCandidate } from './feed-ranking';
 
 function candidate(overrides: Partial<RankingCandidate> & Pick<RankingCandidate, 'videoId' | 'channelId'>): RankingCandidate {
   return {
     trial: false, subscribed: true, watchState: 'unwatched', watchPercentage: 0, uploadDate: '2026-08-12',
-    viewCount: 100, channelViewMax: 1000, channelWeightedWatch: 0, channelEvidence: 0,
+    viewCount: 100, channelViewMax: 1000, channelWeightedWatch: 0, channelEvidence: 0, refreshPenalty: 0,
     ...overrides
   };
 }
@@ -65,6 +65,44 @@ test('a full feed uses a thirty-two to eight established/trial mix', () => {
   const selected = selectRankedFeed([...established, ...trials], 40, 0.2, 4, new Date('2026-08-13T12:00:00Z'));
   assert.equal(selected.filter((id) => id.startsWith('established-')).length, 32);
   assert.equal(selected.filter((id) => id.startsWith('trial-')).length, 8);
+});
+
+test('a refresh penalty lowers the video ranking score', () => {
+  const now = new Date('2026-08-13T12:00:00Z');
+  const plain = candidate({ videoId: 'plain', channelId: 'a' });
+  const penalized = candidate({ videoId: 'penalized', channelId: 'a', refreshPenalty: REFRESH_PENALTY });
+  assert.ok(rankScore(plain, now) > rankScore(penalized, now));
+});
+
+test('a mild refresh penalty flips two otherwise-identical videos', () => {
+  const now = new Date('2026-08-13T12:00:00Z');
+  const penalized = candidate({ videoId: 'penalized', channelId: 'a', refreshPenalty: REFRESH_PENALTY });
+  const fresh = candidate({ videoId: 'fresh', channelId: 'b' });
+  assert.ok(rankScore(fresh, now) > rankScore(penalized, now));
+});
+
+test('stacked refresh penalties push a video further down', () => {
+  const now = new Date('2026-08-13T12:00:00Z');
+  const once = candidate({ videoId: 'once', channelId: 'a', refreshPenalty: REFRESH_PENALTY });
+  const twice = candidate({ videoId: 'twice', channelId: 'a', refreshPenalty: REFRESH_PENALTY * 2 });
+  assert.ok(rankScore(once, now) > rankScore(twice, now));
+});
+
+test('a refresh penalty lets the next videos take the top of the feed', () => {
+  const now = new Date('2026-08-13T12:00:00Z');
+  const videos = Array.from({ length: 6 }, (_, index) => candidate({ videoId: `v${index}`, channelId: `c${index}` }));
+  const initial = selectRankedFeed(videos, 6, 0.2, 4, now);
+  assert.equal(initial[0], 'v0');
+  assert.equal(initial[1], 'v1');
+  const punished = videos.map((video) =>
+    video.videoId === 'v0' || video.videoId === 'v1'
+      ? { ...video, refreshPenalty: REFRESH_PENALTY }
+      : video
+  );
+  const refreshed = selectRankedFeed(punished, 6, 0.2, 4, now);
+  assert.equal(refreshed[0], 'v2');
+  assert.equal(refreshed[1], 'v3');
+  assert.ok(refreshed.indexOf('v0') > refreshed.indexOf('v2'));
 });
 
 test('playback becomes watched at eighty percent', () => {

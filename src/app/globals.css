@@ -53,6 +53,18 @@ svg { display: block; }
 .feed-empty p { max-width: 420px; margin: 0; color: var(--muted); line-height: 1.5; }
 .empty-action { display: inline-flex; align-items: center; margin-top: 22px; }
 
+.feed-shell { position: relative; transition: transform .3s cubic-bezier(.2, .7, .3, 1); }
+.feed-shell.pulling { transition: none; }
+.brand-button { padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+.feed-refresh-indicator {
+  position: absolute; top: -16px; right: 0; left: 0; display: grid; place-content: center;
+  color: var(--muted); opacity: 0; pointer-events: none;
+}
+.feed-refresh-indicator.active { opacity: 1; }
+.feed-refresh-indicator svg { width: 26px; height: 26px; }
+.feed-refresh-indicator.spinning svg { animation: feed-spin .7s linear infinite; }
+@keyframes feed-spin { to { transform: rotate(1turn); } }
+
 .channels-intro { width: min(100%, 760px); margin: 32px auto 0; }
 .channels-intro h1 { margin: 0 0 28px; font-size: clamp(40px, 8vw, 68px); letter-spacing: -.06em; }
 .subscribed-channels { overflow: hidden; width: min(100%, 760px); margin: 42px auto 0; border: 1px solid var(--border); border-radius: 17px; background: rgba(15, 16, 18, .85); }
