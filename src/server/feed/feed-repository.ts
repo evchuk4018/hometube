@@ -68,6 +68,7 @@ export function rankingCandidates(rows: FeedRow[]): RankingCandidate[] {
     trial: !row.is_subscribed && row.trial_status === 'active',
     subscribed: row.is_subscribed,
     watchState: row.watch_state,
+    watchPercentage: row.watch_percentage === null ? null : Number(row.watch_percentage),
     uploadDate: row.upload_date,
     viewCount: row.view_count === null ? null : Number(row.view_count),
     channelViewMax: Number(row.channel_view_max),

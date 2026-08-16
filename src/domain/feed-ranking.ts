@@ -4,6 +4,7 @@ export type RankingCandidate = {
   trial: boolean;
   subscribed: boolean;
   watchState: 'unwatched' | 'in_progress' | 'watched';
+  watchPercentage: number | null;
   uploadDate: string | null;
   viewCount: number | null;
   channelViewMax: number;
@@ -13,6 +14,9 @@ export type RankingCandidate = {
 
 const CHANNEL_PRIOR = 0.35;
 const CHANNEL_PRIOR_WEIGHT = 3;
+const MOSTLY_WATCHED_PENALTY = 0.5;
+const MOSTLY_WATCHED_THRESHOLD = 0.5;
+const MOSTLY_WATCHED_SPAN = 0.3;
 const DAY_MS = 86_400_000;
 
 export function rankScore(candidate: RankingCandidate, now = new Date()): number {
@@ -26,8 +30,11 @@ export function rankScore(candidate: RankingCandidate, now = new Date()): number
   const view = candidate.viewCount === null || candidate.channelViewMax <= 0
     ? 0
     : Math.log1p(candidate.viewCount) / Math.log1p(candidate.channelViewMax);
-  const resume = candidate.watchState === 'in_progress' ? 0.2 : 0;
-  return 0.5 * engagement + 0.25 * recency + 0.2 * view + (candidate.subscribed ? 0.05 : 0) + resume;
+  const mostlyWatched = candidate.watchPercentage === null
+    ? 0
+    : Math.min(1, Math.max(0, (candidate.watchPercentage - MOSTLY_WATCHED_THRESHOLD) / MOSTLY_WATCHED_SPAN));
+  return 0.5 * engagement + 0.25 * recency + 0.2 * view + (candidate.subscribed ? 0.05 : 0)
+    - MOSTLY_WATCHED_PENALTY * mostlyWatched;
 }
 
 export function selectRankedFeed(

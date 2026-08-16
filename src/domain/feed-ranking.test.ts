@@ -4,7 +4,7 @@ import { playbackState, rankScore, selectRankedFeed, type RankingCandidate } fro
 
 function candidate(overrides: Partial<RankingCandidate> & Pick<RankingCandidate, 'videoId' | 'channelId'>): RankingCandidate {
   return {
-    trial: false, subscribed: true, watchState: 'unwatched', uploadDate: '2026-08-12',
+    trial: false, subscribed: true, watchState: 'unwatched', watchPercentage: 0, uploadDate: '2026-08-12',
     viewCount: 100, channelViewMax: 1000, channelWeightedWatch: 0, channelEvidence: 0,
     ...overrides
   };
@@ -17,6 +17,29 @@ test('ranking favors engagement first, then recency, views, and subscription', (
   assert.ok(rankScore(engaged, now) > rankScore(cold, now));
   assert.ok(rankScore(candidate({ videoId: 'new', channelId: 'a' }), now)
     > rankScore(candidate({ videoId: 'old', channelId: 'a', uploadDate: '2026-01-01' }), now));
+});
+
+test('videos over fifty percent watched are docked below unwatched ones', () => {
+  const now = new Date('2026-08-13T12:00:00Z');
+  const unwatched = candidate({ videoId: 'unwatched', channelId: 'a' });
+  const mostlyWatched = candidate({ videoId: 'mostly', channelId: 'a', watchState: 'in_progress', watchPercentage: 0.75 });
+  assert.ok(rankScore(unwatched, now) > rankScore(mostlyWatched, now));
+});
+
+test('the penalty grows from fifty to eighty percent watched', () => {
+  const now = new Date('2026-08-13T12:00:00Z');
+  const half = candidate({ videoId: 'half', channelId: 'a', watchState: 'in_progress', watchPercentage: 0.5 });
+  const sixty = candidate({ videoId: 'sixty', channelId: 'a', watchState: 'in_progress', watchPercentage: 0.6 });
+  const seventyFive = candidate({ videoId: 'seventy-five', channelId: 'a', watchState: 'in_progress', watchPercentage: 0.75 });
+  assert.ok(rankScore(half, now) > rankScore(sixty, now));
+  assert.ok(rankScore(sixty, now) > rankScore(seventyFive, now));
+});
+
+test('in-progress videos under fifty percent outrank over-fifty percent ones', () => {
+  const now = new Date('2026-08-13T12:00:00Z');
+  const barelyStarted = candidate({ videoId: 'barely', channelId: 'a', watchState: 'in_progress', watchPercentage: 0.4 });
+  const mostlyWatched = candidate({ videoId: 'mostly', channelId: 'a', watchState: 'in_progress', watchPercentage: 0.6 });
+  assert.ok(rankScore(barelyStarted, now) > rankScore(mostlyWatched, now));
 });
 
 test('feed excludes watched videos, reserves trials, and caps channels', () => {
