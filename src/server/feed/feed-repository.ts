@@ -109,7 +109,7 @@ export async function savePlaybackProgress(videoId: string, positionSeconds: num
   return transaction(async (client) => {
     const rows = await client.query<{ watch_state: VideoSummary['watchState'] }>(`
         UPDATE videos SET
-          playback_position_seconds = CASE WHEN $4 = 'watched' THEN 0 ELSE $2 END,
+          playback_position_seconds = CASE WHEN $4 = 'watched' THEN 0::numeric ELSE $2 END,
           playback_duration_seconds = $3,
           watch_percentage = GREATEST(watch_percentage, $5),
           watch_state = CASE WHEN watch_state = 'watched' THEN 'watched' ELSE $4 END,
