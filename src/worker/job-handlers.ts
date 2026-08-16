@@ -1,5 +1,5 @@
 import { transaction, query } from '@/server/db/client';
-import { getChannel, pruneImportedCatalog, setChannelImportState, updateImportedChannel, upsertImportedVideo } from '@/server/channels/channel-repository';
+import { getChannel, setChannelImportState, updateImportedChannel, upsertImportedVideo } from '@/server/channels/channel-repository';
 import { completeJob, updateJobProgress, type ClaimedJob } from '@/server/jobs/job-repository';
 import { importChannelCatalog } from '@/server/youtube/yt-dlp-adapter';
 import { downloadVideo } from '@/server/media/download-adapter';
@@ -29,9 +29,6 @@ async function handleChannelImport(job: ClaimedJob): Promise<void> {
   });
 
   if (count === 0) throw new Error('No public videos were found for this channel.');
-  await transaction(async (client) => {
-    await pruneImportedCatalog(client, channel.id, channel.source, channel.subscribed);
-  });
   await setChannelImportState(channel.id, 'ready');
   await completeJob(job.id, `Found ${count} videos`);
 }

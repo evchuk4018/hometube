@@ -2,14 +2,18 @@ import { createServer } from 'node:http';
 import os from 'node:os';
 import { pool } from '@/server/db/client';
 import { claimNextJob, failJob, scheduleDueJobs } from '@/server/jobs/job-repository';
+import { runRetentionMaintenance } from '@/server/media/retention-service';
 import { handleJob, reflectJobFailure } from './job-handlers';
 
 const workerId = `${os.hostname()}:${process.pid}`;
 const pollMs = Number(process.env.WORKER_POLL_MS ?? 1500);
 const port = Number(process.env.WORKER_PORT ?? 4000);
+const parsedRetentionMs = Number(process.env.HOMETUBE_RETENTION_INTERVAL_MS ?? 60 * 60 * 1000);
+const retentionIntervalMs = Number.isFinite(parsedRetentionMs) && parsedRetentionMs > 0 ? parsedRetentionMs : 60 * 60 * 1000;
 let stopping = false;
 let activeJobId: string | null = null;
 let lastMaintenanceAt = 0;
+let lastRetentionAt = 0;
 let databaseHealthy = false;
 
 const server = createServer((request, response) => {
@@ -33,6 +37,20 @@ async function loop(): Promise<void> {
           databaseHealthy = false;
           console.error('Unable to schedule maintenance', error);
         });
+      if (Date.now() - lastRetentionAt >= retentionIntervalMs) {
+        lastRetentionAt = Date.now();
+        await runRetentionMaintenance()
+          .then((result) => {
+            databaseHealthy = true;
+            if (result.deletedCount > 0) {
+              console.log(`Retention evicted ${result.deletedCount} video(s), freed ${Math.round(result.freedBytes / (1024 * 1024))} MiB`);
+            }
+          })
+          .catch((error) => {
+            databaseHealthy = false;
+            console.error('Unable to run retention maintenance', error);
+          });
+      }
     }
     const job = await claimNextJob(workerId)
       .then((claimed) => {

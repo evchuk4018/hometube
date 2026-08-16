@@ -25,8 +25,8 @@
     * Wowzer Bowser / personal AI infrastructure
     * Scheduled AI jobs and automations
 * Tailscale is already used for private remote access.
-* This application’s downloaded YouTube and podcast media must have a hard maximum allocation of 128 GB.
-* Metadata, thumbnails, watch history, recommendation data, and other lightweight application data do not need to count toward the 128 GB media-file limit.
+* This application’s downloaded YouTube and podcast media must have a hard maximum allocation of 256 GB.
+* Metadata, thumbnails, watch history, recommendation data, and other lightweight application data do not need to count toward the 256 GB media-file limit.
 * The application must operate comfortably alongside the existing workloads on this hardware.
 * The application should avoid unnecessary CPU, RAM, disk-I/O, and storage usage.
 * High-resolution video is not a priority.
@@ -245,13 +245,13 @@
     * Reduce download bandwidth
     * Reduce disk I/O
     * Reduce unnecessary transcoding
-    * Increase the number of videos that can fit inside the 128 GB media cache
+    * Increase the number of videos that can fit inside the 256 GB media cache
 
 ## Local Media Storage
 
-* Allocate a maximum of 128 GB of the 1 TB HDD to downloaded YouTube and podcast media.
+* Allocate a maximum of 256 GB of the 1 TB HDD to downloaded YouTube and podcast media.
 * The application must enforce the storage limit automatically.
-* The 128 GB limit must be treated as a hard ceiling.
+* The 256 GB limit must be treated as a hard ceiling.
 * The application should normally remain below the hard ceiling to leave space for incoming downloads.
 * Storage management must function as a rotating media cache, not an unlimited archive.
 * Videos may be automatically deleted when storage needs to be reclaimed.
@@ -326,7 +326,7 @@
 * User behavior decides which channels survive.
 * Channel preference decides what dominates Home.
 * The metadata catalog determines what can be browsed.
-* The 128 GB rotating cache determines what is immediately available locally.
+* The 256 GB rotating cache determines what is immediately available locally.
 * Podcast Channel status determines what must always be automatically acquired regardless of recommendation score.
 * The system prioritizes availability, storage efficiency, and simplicity over high video quality.
 * 720p is the maximum required video quality.

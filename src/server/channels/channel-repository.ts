@@ -231,30 +231,6 @@ export type ImportedVideo = {
   liveStatus: string | null;
 };
 
-export async function pruneImportedCatalog(
-  client: PoolClient,
-  channelId: string,
-  source: ChannelSummary['source'],
-  subscribed: boolean
-): Promise<void> {
-  const recentLimit = source === 'ai_recommendation' && !subscribed ? 10 : 100;
-  const popularLimit = 10;
-  await client.query(`
-    DELETE FROM videos
-    WHERE channel_id = $1
-      AND media_status = 'not_downloaded'
-      AND watch_state = 'unwatched'
-      AND id NOT IN (
-        SELECT id FROM videos WHERE channel_id = $1
-        ORDER BY upload_date DESC NULLS LAST, created_at DESC LIMIT $2
-      )
-      AND id NOT IN (
-        SELECT id FROM videos WHERE channel_id = $1
-        ORDER BY view_count DESC NULLS LAST, upload_date DESC NULLS LAST LIMIT $3
-      )
-  `, [channelId, recentLimit, popularLimit]);
-}
-
 export async function updateImportedChannel(client: PoolClient, channelId: string, data: ImportedChannel): Promise<void> {
   await client.query(`
     UPDATE channels SET
