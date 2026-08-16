@@ -23,22 +23,25 @@ export async function buildAndStoreQueue(currentVideoId: string): Promise<QueueE
     .map((video) => ({ videoId: video.id, watchState: video.watchState }));
   const nextIds = buildQueue(currentVideoId, existing, candidates, QUEUE_SIZE);
   await replaceQueue(nextIds);
-  const entries = await loadEntries(nextIds);
-  await ensureDownloads(entries);
-  return entries;
+  const videos = await loadVideos(nextIds);
+  await ensureDownloads(videos);
+  return loadEntries(nextIds);
+}
+
+async function loadVideos(videoIds: string[]): Promise<VideoSummary[]> {
+  return (await Promise.all(videoIds.map((id) => getVideo(id))))
+    .filter((video): video is VideoSummary => video !== null);
 }
 
 async function loadEntries(videoIds: string[]): Promise<QueueEntry[]> {
-  const videos = (await Promise.all(videoIds.map((id) => getVideo(id))))
-    .filter((video): video is VideoSummary => video !== null);
+  const videos = await loadVideos(videoIds);
   const jobs = await getActiveVideoDownloadJobs(videos.map((video) => video.id));
   const jobsByVideo = new Map(jobs.map(({ job, videoId }) => [videoId, job]));
   return videos.map((video) => ({ video, job: jobsByVideo.get(video.id) ?? null }));
 }
 
-async function ensureDownloads(entries: QueueEntry[]): Promise<void> {
-  for (const entry of entries) {
-    const video = entry.video;
+async function ensureDownloads(videos: VideoSummary[]): Promise<void> {
+  for (const video of videos) {
     if (!video.downloadable || video.mediaStatus === 'ready') continue;
     await enqueueVideoDownload(video.id, video.channelId);
   }
