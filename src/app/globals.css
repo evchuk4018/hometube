@@ -227,6 +227,10 @@ progress::-moz-progress-bar { background: var(--red); border-radius: 10px; }
   .video-card-body { padding-inline: 14px; }
 }
 
+@media (min-width: 621px) {
+  .watch-page .player-shell, .watch-page .watch-download-state { width: min(100%, 960px); margin-inline: auto; }
+}
+
 @media (orientation: landscape) and (max-height: 600px) {
   .watch-page { position: fixed; inset: 0; width: 100vw; height: 100dvh; overflow: hidden; }
   .watch-page .player-shell { width: 100vw; height: 100dvh; aspect-ratio: auto; }
