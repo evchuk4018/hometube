@@ -20,7 +20,6 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
-  const suppressingAutoplayRef = useRef(false);
 
   useEffect(() => {
     const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;
@@ -40,7 +39,6 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
     const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;
     if (!player || !autoplayTick) return;
     const attempt = () => {
-      if (suppressingAutoplayRef.current) return;
       if (player.paused && !player.ended) void player.play().catch(() => undefined);
     };
     attempt();
@@ -51,46 +49,6 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
       player.removeEventListener('loadedmetadata', attempt);
     };
   }, [video.hasBackgroundAudio, video.id, autoplayTick]);
-
-  useEffect(() => {
-    const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;
-    if (!player || !/iPhone|iPod|iPad/i.test(navigator.userAgent)) return;
-    const resetTimeoutRef: { current: number | null } = { current: null };
-    const pendingMetadataRef: { current: (() => void) | null } = { current: null };
-    const clearPending = () => {
-      if (pendingMetadataRef.current) {
-        player.removeEventListener('loadedmetadata', pendingMetadataRef.current);
-        pendingMetadataRef.current = null;
-      }
-      if (resetTimeoutRef.current !== null) {
-        window.clearTimeout(resetTimeoutRef.current);
-        resetTimeoutRef.current = null;
-      }
-      suppressingAutoplayRef.current = false;
-    };
-    const resetOnReturn = () => {
-      if (document.visibilityState !== 'visible' || !player.paused || player.ended) return;
-      const position = player.currentTime;
-      clearPending();
-      suppressingAutoplayRef.current = true;
-      const onMetadata = () => {
-        pendingMetadataRef.current = null;
-        suppressingAutoplayRef.current = false;
-        if (Number.isFinite(position) && position > 0) {
-          try { player.currentTime = position; } catch { /* metadata may still be loading */ }
-        }
-      };
-      pendingMetadataRef.current = onMetadata;
-      player.addEventListener('loadedmetadata', onMetadata);
-      player.load();
-      resetTimeoutRef.current = window.setTimeout(clearPending, 3000);
-    };
-    document.addEventListener('visibilitychange', resetOnReturn);
-    return () => {
-      document.removeEventListener('visibilitychange', resetOnReturn);
-      clearPending();
-    };
-  }, [video.hasBackgroundAudio, video.id]);
 
   useEffect(() => {
     if (!video.hasBackgroundAudio) return;
