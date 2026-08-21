@@ -49,6 +49,7 @@ export async function downloadVideo(
 
   try {
     await runProcess(process.env.YTDLP_COMMAND ?? 'yt-dlp', buildDownloadArgs(videoId, outputTemplate), {
+      timeoutMs: 10 * 60 * 1000,
       onStdoutLine: async (line) => {
         const progress = parseDownloadProgress(line);
         if (progress !== null) await onProgress(progress * 0.88, 'Downloading');
@@ -84,7 +85,7 @@ export async function downloadVideo(
       );
     }
     ffmpegArgs.push('-movflags', '+faststart', '-f', 'mp4', stagingPath);
-    await runProcess(process.env.FFMPEG_COMMAND ?? 'ffmpeg', ffmpegArgs);
+    await runProcess(process.env.FFMPEG_COMMAND ?? 'ffmpeg', ffmpegArgs, { timeoutMs: 8 * 60 * 1000 });
 
     const finalProbe = await probeMedia(stagingPath);
     const final = mediaCodecs(finalProbe);

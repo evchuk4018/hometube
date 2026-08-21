@@ -18,3 +18,15 @@ test('allows a stdout consumer to stop a long-running process', async () => {
   assert.equal(callbacks, 1);
   assert.match(result.stdout, /first/);
 });
+
+test('terminates a process that exceeds the configured timeout', async () => {
+  await assert.rejects(
+    () => runProcess(process.execPath, ['-e', "setInterval(() => {}, 1000);"], { timeoutMs: 300 }),
+    /timed out|exited with code/
+  );
+});
+
+test('does not time out a fast process', async () => {
+  const result = await runProcess(process.execPath, ['-e', "console.log('ok')"], { timeoutMs: 2000 });
+  assert.match(result.stdout, /ok/);
+});

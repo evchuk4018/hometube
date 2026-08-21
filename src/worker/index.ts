@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import os from 'node:os';
 import { pool } from '@/server/db/client';
-import { claimNextJob, failJob, scheduleDueJobs } from '@/server/jobs/job-repository';
+import { claimNextJob, failJob, reapStuckJobs, scheduleDueJobs } from '@/server/jobs/job-repository';
 import { runRetentionMaintenance } from '@/server/media/retention-service';
 import { handleJob, reflectJobFailure } from './job-handlers';
 
@@ -37,6 +37,11 @@ async function loop(): Promise<void> {
           databaseHealthy = false;
           console.error('Unable to schedule maintenance', error);
         });
+      await reapStuckJobs()
+        .then((count) => {
+          if (count > 0) console.log(`Reaped ${count} stuck job(s)`);
+        })
+        .catch((error) => console.error('Unable to reap stuck jobs', error));
       if (Date.now() - lastRetentionAt >= retentionIntervalMs) {
         lastRetentionAt = Date.now();
         await runRetentionMaintenance()
@@ -68,7 +73,11 @@ async function loop(): Promise<void> {
     }
     activeJobId = job.id;
     try {
-      await handleJob(job);
+      const timeoutMs = job.type === 'download_video' ? 20 * 60 * 1000 : 5 * 60 * 1000;
+      await Promise.race([
+        handleJob(job),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`Job timed out after ${Math.round(timeoutMs/1000)}s`)), timeoutMs))
+      ]);
     } catch (error) {
       const message = safeMessage(error);
       console.error(`Job ${job.id} failed: ${message}`);

@@ -19,7 +19,8 @@ export function buildBackgroundAudioArgs(sourcePath: string, outputPath: string)
 export async function extractBackgroundAudio(sourcePath: string, outputPath: string): Promise<number> {
   await runProcess(
     process.env.FFMPEG_COMMAND ?? 'ffmpeg',
-    buildBackgroundAudioArgs(sourcePath, outputPath)
+    buildBackgroundAudioArgs(sourcePath, outputPath),
+    { timeoutMs: 5 * 60 * 1000 }
   );
   const streams = mediaCodecs(await probeMedia(outputPath));
   if (!streams.audio || streams.audio.codec_name !== 'aac' || streams.video) {

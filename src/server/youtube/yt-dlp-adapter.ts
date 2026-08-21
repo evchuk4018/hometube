@@ -95,6 +95,7 @@ export async function importChannelCatalog(
   for (const target of targets) {
     try {
       await runProcess(process.env.YTDLP_COMMAND ?? 'yt-dlp', buildCatalogArgs(target.url, target.limit), {
+        timeoutMs: 90_000,
         onStdoutLine: async (line) => {
           let parsed: YtDlpEntry;
           try {
@@ -105,8 +106,9 @@ export async function importChannelCatalog(
           const entry = mapCatalogEntry(parsed);
           if (!entry || seen.has(entry.video.id)) return;
           seen.add(entry.video.id);
-          importedCount += 1;
-          await onEntry(entry, importedCount);
+          const nextCount = importedCount + 1;
+          await onEntry(entry, nextCount);
+          importedCount = nextCount;
         }
       });
     } catch {
@@ -120,6 +122,7 @@ export async function importChannelCatalog(
 export async function validateChannelUrl(sourceUrl: string): Promise<{ name: string; youtubeChannelId: string | null }> {
   let found: CatalogEntry | null = null;
   await runProcess(process.env.YTDLP_COMMAND ?? 'yt-dlp', buildCatalogArgs(`${sourceUrl}/videos`, 1), {
+    timeoutMs: 60_000,
     onStdoutLine: (line) => {
       try {
         const mapped = mapCatalogEntry(JSON.parse(line) as YtDlpEntry);

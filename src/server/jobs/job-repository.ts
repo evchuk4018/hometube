@@ -40,7 +40,12 @@ export async function enqueueChannelImport(channelId: string): Promise<JobSummar
     INSERT INTO jobs (id, type, channel_id)
     VALUES ($1, 'import_channel', $2)
     ON CONFLICT (channel_id) WHERE type = 'import_channel' AND status IN ('queued', 'running')
-    DO UPDATE SET updated_at = now()
+    DO UPDATE SET
+      status = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN 'queued' ELSE jobs.status END,
+      lease_owner = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN NULL ELSE jobs.lease_owner END,
+      lease_expires_at = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN NULL ELSE jobs.lease_expires_at END,
+      stage = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN 'Queued' ELSE jobs.stage END,
+      updated_at = now()
     RETURNING *
   `, [randomUUID(), channelId]);
   return mapJob(rows[0]);
@@ -51,7 +56,12 @@ export async function enqueueVideoDownload(videoId: string, channelId: string): 
     INSERT INTO jobs (id, type, channel_id, video_id)
     VALUES ($1, 'download_video', $2, $3)
     ON CONFLICT (video_id) WHERE type = 'download_video' AND status IN ('queued', 'running')
-    DO UPDATE SET updated_at = now()
+    DO UPDATE SET
+      status = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN 'queued' ELSE jobs.status END,
+      lease_owner = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN NULL ELSE jobs.lease_owner END,
+      lease_expires_at = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN NULL ELSE jobs.lease_expires_at END,
+      stage = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN 'Queued' ELSE jobs.stage END,
+      updated_at = now()
     RETURNING *
   `, [randomUUID(), channelId, videoId]);
   await query(`UPDATE videos SET media_status = 'queued', media_error = NULL, updated_at = now() WHERE id = $1`, [videoId]);
@@ -63,7 +73,12 @@ export async function enqueueChannelDiscovery(): Promise<JobSummary> {
     INSERT INTO jobs (id, type)
     VALUES ($1, 'discover_channels')
     ON CONFLICT (type) WHERE type = 'discover_channels' AND status IN ('queued', 'running')
-    DO UPDATE SET updated_at = now()
+    DO UPDATE SET
+      status = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN 'queued' ELSE jobs.status END,
+      lease_owner = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN NULL ELSE jobs.lease_owner END,
+      lease_expires_at = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN NULL ELSE jobs.lease_expires_at END,
+      stage = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN 'Queued' ELSE jobs.stage END,
+      updated_at = now()
     RETURNING *
   `, [randomUUID()]);
   return mapJob(rows[0]);
@@ -107,7 +122,8 @@ export async function getJob(jobId: string): Promise<JobSummary | null> {
 
 export async function getActiveChannelJob(channelId: string): Promise<JobSummary | null> {
   const rows = await query<JobRow>(`
-    SELECT * FROM jobs WHERE channel_id = $1 AND type = 'import_channel'
+    SELECT * FROM jobs
+    WHERE channel_id = $1 AND type = 'import_channel' AND status IN ('queued', 'running')
     ORDER BY created_at DESC LIMIT 1
   `, [channelId]);
   return rows[0] ? mapJob(rows[0]) : null;
@@ -127,8 +143,10 @@ export async function claimNextJob(workerId: string): Promise<ClaimedJob | null>
   return transaction(async (client) => {
     const result = await client.query<JobRow>(`
       SELECT * FROM jobs
-      WHERE (status = 'queued' OR (status = 'running' AND lease_expires_at < now()))
-        AND attempt_count < 3
+      WHERE (
+        (status = 'queued' AND attempt_count < 3)
+        OR (status = 'running' AND (lease_expires_at IS NULL OR lease_expires_at < now()))
+      )
       ORDER BY CASE type WHEN 'download_video' THEN 0 WHEN 'import_channel' THEN 1 ELSE 2 END, created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
@@ -172,4 +190,30 @@ export async function failJob(job: ClaimedJob, message: string): Promise<void> {
       completed_at = CASE WHEN $2 = 'failed' THEN now() ELSE NULL END
     WHERE id = $1
   `, [job.id, retry ? 'queued' : 'failed', retry ? 'Retrying' : 'Failed', message]);
+}
+
+export async function reapStuckJobs(): Promise<number> {
+  const stuck = await query<{ id: string }>(`
+    UPDATE jobs SET status = 'failed', stage = 'Failed', error = 'Exceeded retry limit',
+      lease_owner = NULL, lease_expires_at = NULL, completed_at = now(), updated_at = now()
+    WHERE status = 'queued' AND attempt_count >= 3
+    RETURNING id
+  `);
+  if (stuck.length > 0) {
+    await query(`
+      UPDATE videos SET media_status = 'failed', media_error = 'Exceeded retry limit', updated_at = now()
+      WHERE id IN (SELECT video_id FROM jobs WHERE id = ANY($1::uuid[]))
+        AND media_status IN ('queued', 'downloading')
+    `, [stuck.map((r) => r.id)]);
+  }
+  // Requeue orphaned videos that appear queued but have no active job for >10 minutes
+  await query(`
+    UPDATE videos SET media_status = 'failed', media_error = 'Download stalled - please retry', updated_at = now()
+    WHERE media_status IN ('queued', 'downloading')
+      AND updated_at < now() - interval '10 minutes'
+      AND NOT EXISTS (
+        SELECT 1 FROM jobs j WHERE j.video_id = videos.id AND j.type = 'download_video' AND j.status IN ('queued', 'running')
+      )
+  `);
+  return stuck.length;
 }

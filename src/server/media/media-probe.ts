@@ -15,7 +15,7 @@ export type ProbeResult = {
 export async function probeMedia(filePath: string): Promise<ProbeResult> {
   const result = await runProcess(process.env.FFPROBE_COMMAND ?? 'ffprobe', [
     '-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', filePath
-  ]);
+  ], { timeoutMs: 30_000 });
   return JSON.parse(result.stdout) as ProbeResult;
 }
 
