@@ -15,6 +15,24 @@ export type RankingCandidate = {
   refreshPenalty: number;
 };
 
+export type RankingPolicy = {
+  trialShare: number;
+  subscribedBonus: number;
+  perChannelLimit: number;
+};
+
+export const DEFAULT_RANKING_POLICY: RankingPolicy = {
+  trialShare: 0.2,
+  subscribedBonus: 0.05,
+  perChannelLimit: 4
+};
+
+export const HOME_RANKING_POLICY: RankingPolicy = {
+  trialShare: 0.1,
+  subscribedBonus: 0.2,
+  perChannelLimit: 4
+};
+
 const CHANNEL_PRIOR = 0.35;
 const CHANNEL_PRIOR_WEIGHT = 3;
 const MOSTLY_WATCHED_PENALTY = 0.5;
@@ -22,7 +40,11 @@ const MOSTLY_WATCHED_THRESHOLD = 0.5;
 const MOSTLY_WATCHED_SPAN = 0.3;
 const DAY_MS = 86_400_000;
 
-export function rankScore(candidate: RankingCandidate, now = new Date()): number {
+export function rankScore(
+  candidate: RankingCandidate,
+  now = new Date(),
+  policy: RankingPolicy = DEFAULT_RANKING_POLICY
+): number {
   const engagement = (
     candidate.channelWeightedWatch + CHANNEL_PRIOR * CHANNEL_PRIOR_WEIGHT
   ) / (candidate.channelEvidence + CHANNEL_PRIOR_WEIGHT);
@@ -36,7 +58,7 @@ export function rankScore(candidate: RankingCandidate, now = new Date()): number
   const mostlyWatched = candidate.watchPercentage === null
     ? 0
     : Math.min(1, Math.max(0, (candidate.watchPercentage - MOSTLY_WATCHED_THRESHOLD) / MOSTLY_WATCHED_SPAN));
-  return 0.5 * engagement + 0.25 * recency + 0.2 * view + (candidate.subscribed ? 0.05 : 0)
+  return 0.5 * engagement + 0.25 * recency + 0.2 * view + (candidate.subscribed ? policy.subscribedBonus : 0)
     - MOSTLY_WATCHED_PENALTY * mostlyWatched
     - candidate.refreshPenalty;
 }
@@ -44,14 +66,13 @@ export function rankScore(candidate: RankingCandidate, now = new Date()): number
 export function selectRankedFeed(
   candidates: RankingCandidate[],
   limit = 40,
-  trialShare = 0.2,
-  perChannelLimit = 4,
+  policy: RankingPolicy = DEFAULT_RANKING_POLICY,
   now = new Date()
 ): string[] {
   const scored = candidates
     .filter((candidate) => candidate.watchState !== 'watched')
-    .map((candidate) => ({ ...candidate, score: rankScore(candidate, now) }));
-  const trialTarget = Math.min(Math.round(limit * trialShare), scored.filter((item) => item.trial).length);
+    .map((candidate) => ({ ...candidate, score: rankScore(candidate, now, policy) }));
+  const trialTarget = Math.min(Math.round(limit * policy.trialShare), scored.filter((item) => item.trial).length);
   const establishedTarget = Math.max(0, limit - trialTarget);
   const counts = new Map<string, number>();
 
@@ -60,7 +81,7 @@ export function selectRankedFeed(
     for (const item of pool.sort((a, b) => b.score - a.score || a.videoId.localeCompare(b.videoId))) {
       if (picked.length >= target) break;
       const count = counts.get(item.channelId) ?? 0;
-      if (count >= perChannelLimit) continue;
+      if (count >= policy.perChannelLimit) continue;
       counts.set(item.channelId, count + 1);
       picked.push(item);
     }

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { playbackState, rankScore, REFRESH_PENALTY, selectRankedFeed, type RankingCandidate } from './feed-ranking';
+import {
+  DEFAULT_RANKING_POLICY, HOME_RANKING_POLICY, playbackState, rankScore, REFRESH_PENALTY,
+  selectRankedFeed, type RankingCandidate
+} from './feed-ranking';
 
 function candidate(overrides: Partial<RankingCandidate> & Pick<RankingCandidate, 'videoId' | 'channelId'>): RankingCandidate {
   return {
@@ -48,7 +51,7 @@ test('feed excludes watched videos, reserves trials, and caps channels', () => {
     ...Array.from({ length: 6 }, (_, index) => candidate({ videoId: `b${index}`, channelId: `b${index}`, trial: true })),
     candidate({ videoId: 'watched', channelId: 'z', watchState: 'watched' })
   ];
-  const selected = selectRankedFeed(items, 10, 0.2, 4, new Date('2026-08-13T12:00:00Z'));
+  const selected = selectRankedFeed(items, 10, DEFAULT_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
   assert.equal(selected.length, 10);
   assert.equal(selected.filter((id) => id.startsWith('a')).length, 4);
   assert.equal(selected.filter((id) => id.startsWith('b')).length, 6);
@@ -62,8 +65,40 @@ test('a full feed uses a thirty-two to eight established/trial mix', () => {
   const trials = Array.from({ length: 20 }, (_, index) => candidate({
     videoId: `trial-${index}`, channelId: `trial-channel-${Math.floor(index / 4)}`, trial: true, subscribed: false
   }));
-  const selected = selectRankedFeed([...established, ...trials], 40, 0.2, 4, new Date('2026-08-13T12:00:00Z'));
+  const selected = selectRankedFeed([...established, ...trials], 40, DEFAULT_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
   assert.equal(selected.filter((id) => id.startsWith('established-')).length, 32);
+  assert.equal(selected.filter((id) => id.startsWith('trial-')).length, 8);
+});
+
+test('the Home profile uses a thirty-six to four subscribed/trial mix', () => {
+  const subscribed = Array.from({ length: 40 }, (_, index) => candidate({
+    videoId: `subscribed-${index}`, channelId: `subscribed-channel-${index}`
+  }));
+  const trials = Array.from({ length: 20 }, (_, index) => candidate({
+    videoId: `trial-${index}`, channelId: `trial-channel-${index}`, trial: true, subscribed: false
+  }));
+  const selected = selectRankedFeed([...subscribed, ...trials], 40, HOME_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
+  assert.equal(selected.filter((id) => id.startsWith('subscribed-')).length, 36);
+  assert.equal(selected.filter((id) => id.startsWith('trial-')).length, 4);
+});
+
+test('the Home profile gives subscribed videos a meaningful score advantage', () => {
+  const now = new Date('2026-08-13T12:00:00Z');
+  const subscribed = candidate({ videoId: 'subscribed', channelId: 'subscribed-channel' });
+  const trial = candidate({ videoId: 'trial', channelId: 'trial-channel', trial: true, subscribed: false });
+  assert.ok(rankScore(subscribed, now, HOME_RANKING_POLICY) > rankScore(trial, now, HOME_RANKING_POLICY));
+});
+
+test('the Home profile fills the feed with trials when subscriptions are sparse', () => {
+  const subscribed = Array.from({ length: 2 }, (_, index) => candidate({
+    videoId: `subscribed-${index}`, channelId: `subscribed-channel-${index}`
+  }));
+  const trials = Array.from({ length: 12 }, (_, index) => candidate({
+    videoId: `trial-${index}`, channelId: `trial-channel-${index}`, trial: true, subscribed: false
+  }));
+  const selected = selectRankedFeed([...subscribed, ...trials], 10, HOME_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
+  assert.equal(selected.length, 10);
+  assert.equal(selected.filter((id) => id.startsWith('subscribed-')).length, 2);
   assert.equal(selected.filter((id) => id.startsWith('trial-')).length, 8);
 });
 
@@ -91,7 +126,7 @@ test('stacked refresh penalties push a video further down', () => {
 test('a refresh penalty lets the next videos take the top of the feed', () => {
   const now = new Date('2026-08-13T12:00:00Z');
   const videos = Array.from({ length: 6 }, (_, index) => candidate({ videoId: `v${index}`, channelId: `c${index}` }));
-  const initial = selectRankedFeed(videos, 6, 0.2, 4, now);
+  const initial = selectRankedFeed(videos, 6, DEFAULT_RANKING_POLICY, now);
   assert.equal(initial[0], 'v0');
   assert.equal(initial[1], 'v1');
   const punished = videos.map((video) =>
@@ -99,7 +134,7 @@ test('a refresh penalty lets the next videos take the top of the feed', () => {
       ? { ...video, refreshPenalty: REFRESH_PENALTY }
       : video
   );
-  const refreshed = selectRankedFeed(punished, 6, 0.2, 4, now);
+  const refreshed = selectRankedFeed(punished, 6, DEFAULT_RANKING_POLICY, now);
   assert.equal(refreshed[0], 'v2');
   assert.equal(refreshed[1], 'v3');
   assert.ok(refreshed.indexOf('v0') > refreshed.indexOf('v2'));

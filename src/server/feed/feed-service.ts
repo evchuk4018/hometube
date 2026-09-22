@@ -1,14 +1,15 @@
 import type { FeedPayload } from '@/protocol/schemas';
 import { NotFoundError } from '@/server/protocol/http';
 import { applyFeedRefreshPenalties, listRankedFeed, recordFeedImpressions, recordVideoOpen, savePlaybackProgress } from './feed-repository';
+import { readHomeRankingPolicy } from './feed-ranking-config';
 
 export async function getHomeFeed(limit = 40): Promise<FeedPayload> {
-  return { videos: await listRankedFeed(limit) };
+  return { videos: await listRankedFeed(limit, readHomeRankingPolicy()) };
 }
 
 export async function refreshHomeFeed(videoIds: string[], limit = 40): Promise<FeedPayload> {
   await applyFeedRefreshPenalties([...new Set(videoIds)]);
-  return { videos: await listRankedFeed(limit) };
+  return { videos: await listRankedFeed(limit, readHomeRankingPolicy()) };
 }
 
 export async function addFeedImpressions(videoIds: string[]) {

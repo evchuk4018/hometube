@@ -1,5 +1,8 @@
 import { query, transaction } from '@/server/db/client';
-import { playbackState, REFRESH_PENALTY, selectRankedFeed, type RankingCandidate } from '@/domain/feed-ranking';
+import {
+  DEFAULT_RANKING_POLICY, playbackState, REFRESH_PENALTY, selectRankedFeed,
+  type RankingCandidate, type RankingPolicy
+} from '@/domain/feed-ranking';
 import { shouldClearCurrentPlaybackSession } from '@/domain/playback-session';
 import type { VideoSummary } from '@/protocol/schemas';
 import { mapVideo, type VideoRow } from '@/server/channels/channel-repository';
@@ -14,9 +17,9 @@ type FeedRow = VideoRow & {
   refresh_penalty: string;
 };
 
-export async function listRankedFeed(limit = 40): Promise<VideoSummary[]> {
+export async function listRankedFeed(limit = 40, policy: RankingPolicy = DEFAULT_RANKING_POLICY): Promise<VideoSummary[]> {
   const rows = await listRankedFeedRows();
-  const ids = selectRankedFeed(rankingCandidates(rows), limit);
+  const ids = selectRankedFeed(rankingCandidates(rows), limit, policy);
   const byId = videoSummaries(rows);
   return ids.flatMap((id) => byId.get(id) ?? []);
 }
