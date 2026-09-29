@@ -1,31 +1,82 @@
-import { buildQueue, QUEUE_SIZE, type AutoplayCandidate } from '@/domain/autoplay-queue';
+import {
+  buildQueue,
+  dismissQueuedVideo,
+  QUEUE_SIZE,
+  queueSessionExcludedChannels,
+  type AutoplayCandidate,
+  type AutoplayQueueItem
+} from '@/domain/autoplay-queue';
 import { selectRankedFeed } from '@/domain/feed-ranking';
 import type { QueueEntry, VideoSummary } from '@/protocol/schemas';
 import { getVideo } from '@/server/channels/channel-repository';
 import { getActiveVideoDownloadJobs, enqueueVideoDownload } from '@/server/jobs/job-repository';
 import { listRankedFeedRows, rankingCandidates, videoSummaries } from '@/server/feed/feed-repository';
-import { NotFoundError } from '@/server/protocol/http';
-import { getQueueVideoIds, replaceQueue } from './queue-repository';
+import { ConflictError, NotFoundError } from '@/server/protocol/http';
+import { getQueueState, replaceQueue } from './queue-repository';
 
 export async function getQueue(): Promise<QueueEntry[]> {
-  return loadEntries(await getQueueVideoIds());
+  const state = await getQueueState();
+  return loadEntries(state.videoIds);
 }
 
 export async function buildAndStoreQueue(currentVideoId: string): Promise<QueueEntry[]> {
   const current = await getVideo(currentVideoId);
   if (!current) throw new NotFoundError('Video not found.');
-  const existing = await getQueueVideoIds();
+  const state = await getQueueState();
+  const existing = await loadQueueItems(state.videoIds);
+  const excluded = new Set(queueSessionExcludedChannels(current.id, existing, state.excludedChannelIds));
+  const candidates = await loadRankedCandidates();
+  const next = buildQueue(toItem(current), existing, candidates, excluded, QUEUE_SIZE);
+  return storeQueue(next, excluded);
+}
+
+export async function dismissQueueEntry(currentVideoId: string, videoId: string): Promise<QueueEntry[]> {
+  if (videoId === currentVideoId) throw new ConflictError('The current video cannot be dismissed.');
+  const current = await getVideo(currentVideoId);
+  if (!current) throw new NotFoundError('Video not found.');
+  const active = await getQueueState();
+  if (active.videoIds[0] !== currentVideoId) {
+    if (!active.videoIds.includes(currentVideoId)) throw new ConflictError('The current video is not part of the active queue.');
+    await buildAndStoreQueue(currentVideoId);
+  }
+  const synced = await getQueueState();
+  const existing = await loadQueueItems(synced.videoIds);
+  const candidates = await loadRankedCandidates();
+  const dismissal = dismissQueuedVideo(
+    toItem(current),
+    existing,
+    videoId,
+    new Set(synced.excludedChannelIds),
+    candidates,
+    QUEUE_SIZE
+  );
+  if (!dismissal) return loadEntries(synced.videoIds);
+  return storeQueue(dismissal.queue, new Set(dismissal.excludedChannelIds));
+}
+
+function toItem(video: VideoSummary): AutoplayQueueItem {
+  return { videoId: video.id, channelId: video.channelId };
+}
+
+async function loadRankedCandidates(): Promise<AutoplayCandidate[]> {
   const rows = await listRankedFeedRows();
   const rankedIds = selectRankedFeed(rankingCandidates(rows), 100);
   const summaries = videoSummaries(rows);
-  const candidates: AutoplayCandidate[] = rankedIds
+  return rankedIds
     .flatMap((id) => summaries.get(id) ?? [])
-    .map((video) => ({ videoId: video.id, watchState: video.watchState }));
-  const nextIds = buildQueue(currentVideoId, existing, candidates, QUEUE_SIZE);
-  await replaceQueue(nextIds);
-  const videos = await loadVideos(nextIds);
+    .map((video) => ({ videoId: video.id, channelId: video.channelId, watchState: video.watchState }));
+}
+
+async function storeQueue(queue: AutoplayQueueItem[], excludedChannelIds: ReadonlySet<string>): Promise<QueueEntry[]> {
+  const videoIds = queue.map((item) => item.videoId);
+  await replaceQueue(videoIds, [...excludedChannelIds]);
+  const videos = await loadVideos(videoIds);
   await ensureDownloads(videos);
-  return loadEntries(nextIds);
+  return loadEntries(videoIds);
+}
+
+async function loadQueueItems(videoIds: string[]): Promise<AutoplayQueueItem[]> {
+  return (await loadVideos(videoIds)).map(toItem);
 }
 
 async function loadVideos(videoIds: string[]): Promise<VideoSummary[]> {

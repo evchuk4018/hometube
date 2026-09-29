@@ -100,6 +100,24 @@ export function WatchExperience({ initialVideo, subscribed }: { initialVideo: Vi
     setError(entry.video.mediaError);
   }, []);
 
+  const dismissEntry = useCallback(async (entry: QueueEntry) => {
+    try {
+      const response = await fetch(appPath('/api/queue/dismiss'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ currentVideoId: video.id, videoId: entry.video.id })
+      });
+      if (!response.ok) {
+        await refreshQueue();
+        return;
+      }
+      const result = await response.json() as { entries: QueueEntry[] };
+      setQueue(result.entries);
+    } catch {
+      await refreshQueue();
+    }
+  }, [video.id, refreshQueue]);
+
   const handleEnded = useCallback(() => {
     const next = queue[1];
     if (next) playEntry(next, true);
@@ -135,7 +153,7 @@ export function WatchExperience({ initialVideo, subscribed }: { initialVideo: Vi
           <SubscriptionButton channelId={video.channelId} initialSubscribed={subscribed} />
         </div>
         <SleepTimer playerControlRef={playerControlRef} onExpire={handleSleepTimerExpire} onRearm={handleSleepTimerRearm} />
-        <AutoplayQueue queue={queue} currentVideoId={video.id} onPlayEntry={(entry) => playEntry(entry, true)} />
+        <AutoplayQueue queue={queue} currentVideoId={video.id} onPlayEntry={(entry) => playEntry(entry, true)} onDismissEntry={dismissEntry} />
       </section>
     </main>
   );

@@ -201,6 +201,17 @@ progress::-moz-progress-bar { background: var(--red); border-radius: 10px; }
 .autoplay-queue-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 7px 0; }
 .autoplay-queue-entry { border: 0; border-radius: 12px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
 .autoplay-queue-entry:hover { background: var(--surface-raised); }
+.autoplay-queue-swipe { position: relative; overflow: hidden; border-radius: 12px; background: var(--red-dark); }
+.autoplay-queue-swipe .autoplay-queue-dismiss-action {
+  position: absolute; top: 0; right: 0; bottom: 0; display: flex; align-items: center; padding: 0 18px;
+  color: #ffd7d8; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+}
+.autoplay-queue-swipe .autoplay-queue-entry {
+  position: relative; touch-action: pan-y; background: var(--background);
+  transition: transform .18s cubic-bezier(.2, .7, .3, 1);
+}
+.autoplay-queue-swipe .autoplay-queue-entry.dragging { transition: none; }
+.autoplay-queue-swipe .autoplay-queue-entry:hover { background: var(--surface-raised); }
 .autoplay-queue-thumb { position: relative; flex: 0 0 auto; width: 96px; height: 54px; overflow: hidden; border-radius: 8px; background: #0d0d0d; }
 .autoplay-queue-thumb img { object-fit: cover; }
 .autoplay-queue-copy { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: 3px; }

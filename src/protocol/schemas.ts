@@ -82,6 +82,11 @@ export const queueUpdateRequestSchema = z.object({
   currentVideoId: z.string().min(1)
 });
 
+export const queueDismissRequestSchema = z.object({
+  currentVideoId: z.string().min(1),
+  videoId: z.string().min(1)
+});
+
 export type JobSummary = z.infer<typeof jobSummarySchema>;
 export type ChannelSummary = z.infer<typeof channelSummarySchema>;
 export type VideoSummary = z.infer<typeof videoSummarySchema>;
