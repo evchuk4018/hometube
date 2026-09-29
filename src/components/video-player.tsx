@@ -9,6 +9,7 @@ import type { VideoSummary } from '@/protocol/schemas';
 type WebkitVideo = HTMLVideoElement & {
   webkitEnterFullscreen?: () => void;
   webkitExitFullscreen?: () => void;
+  webkitDisplayingFullscreen?: boolean;
 };
 type FullscreenMode = 'none' | 'element' | 'native-video' | 'viewport';
 type ScreenWakeLock = {
@@ -46,6 +47,7 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const nativeFullscreenRef = useRef(false);
   const [fullscreenMode, setFullscreenMode] = useState<FullscreenMode>('none');
   const [wakeLockUnavailable, setWakeLockUnavailable] = useState(false);
   const landscapePlayer = useSyncExternalStore(subscribeToLandscapePlayer, isLandscapePlayer, () => false);
@@ -60,8 +62,14 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
         return current === 'viewport' || current === 'native-video' ? current : 'none';
       });
     };
-    const enterNativeFullscreen = () => setFullscreenMode('native-video');
-    const exitNativeFullscreen = () => setFullscreenMode('none');
+    const enterNativeFullscreen = () => {
+      nativeFullscreenRef.current = true;
+      setFullscreenMode('native-video');
+    };
+    const exitNativeFullscreen = () => {
+      nativeFullscreenRef.current = false;
+      setFullscreenMode('none');
+    };
     document.addEventListener('fullscreenchange', syncFullscreen);
     player?.addEventListener('webkitbeginfullscreen', enterNativeFullscreen);
     player?.addEventListener('webkitendfullscreen', exitNativeFullscreen);
@@ -349,6 +357,11 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
         try {
           player.webkitEnterFullscreen();
           setFullscreenMode('native-video');
+          window.setTimeout(() => {
+            if (!nativeFullscreenRef.current && !player.webkitDisplayingFullscreen) {
+              setFullscreenMode((current) => current === 'native-video' ? 'viewport' : current);
+            }
+          }, 500);
           return;
         } catch { /* use the viewport fallback */ }
       }
