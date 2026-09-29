@@ -1,12 +1,38 @@
 'use client';
 
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { needsMediaSync } from '@/domain/media-sync';
 import { getResumePosition } from '@/domain/playback-progress';
 import { appPath } from '@/lib/app-path';
 import type { VideoSummary } from '@/protocol/schemas';
 
-type WebkitVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+type WebkitVideo = HTMLVideoElement & {
+  webkitEnterFullscreen?: () => void;
+  webkitExitFullscreen?: () => void;
+};
+type FullscreenMode = 'none' | 'element' | 'native-video' | 'viewport';
+type ScreenWakeLock = {
+  release: () => Promise<void>;
+  addEventListener: (type: 'release', listener: () => void, options?: AddEventListenerOptions) => void;
+};
+type WakeLockNavigator = Navigator & {
+  wakeLock?: { request: (type: 'screen') => Promise<ScreenWakeLock> };
+};
+const LANDSCAPE_PLAYER_QUERY = '(orientation: landscape) and (max-height: 600px)';
+
+function subscribeToLandscapePlayer(onChange: () => void) {
+  const query = window.matchMedia(LANDSCAPE_PLAYER_QUERY);
+  if (query.addEventListener) {
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }
+  query.addListener(onChange);
+  return () => query.removeListener(onChange);
+}
+
+function isLandscapePlayer() {
+  return window.matchMedia(LANDSCAPE_PLAYER_QUERY).matches;
+}
 
 export type PlayerControl = { pause: () => void };
 
@@ -20,6 +46,91 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const [fullscreenMode, setFullscreenMode] = useState<FullscreenMode>('none');
+  const [wakeLockUnavailable, setWakeLockUnavailable] = useState(false);
+  const landscapePlayer = useSyncExternalStore(subscribeToLandscapePlayer, isLandscapePlayer, () => false);
+  const shouldKeepScreenAwake = fullscreenMode !== 'none' || landscapePlayer;
+
+  useEffect(() => {
+    const player = videoRef.current;
+    const syncFullscreen = () => {
+      const fullscreenElement = document.fullscreenElement;
+      setFullscreenMode((current) => {
+        if (fullscreenElement) return shellRef.current?.contains(fullscreenElement) ? 'element' : 'none';
+        return current === 'viewport' || current === 'native-video' ? current : 'none';
+      });
+    };
+    const enterNativeFullscreen = () => setFullscreenMode('native-video');
+    const exitNativeFullscreen = () => setFullscreenMode('none');
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    player?.addEventListener('webkitbeginfullscreen', enterNativeFullscreen);
+    player?.addEventListener('webkitendfullscreen', exitNativeFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      player?.removeEventListener('webkitbeginfullscreen', enterNativeFullscreen);
+      player?.removeEventListener('webkitendfullscreen', exitNativeFullscreen);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!shouldKeepScreenAwake) return;
+
+    const wakeLock = (navigator as WakeLockNavigator).wakeLock;
+    if (!wakeLock) return;
+
+    let cancelled = false;
+    let pending = false;
+    let activeLock: ScreenWakeLock | null = null;
+    const release = () => {
+      if (activeLock) {
+        void activeLock.release().catch(() => undefined);
+        activeLock = null;
+      }
+    };
+    const acquire = async () => {
+      if (cancelled || pending || activeLock || document.visibilityState !== 'visible') return;
+      pending = true;
+      try {
+        const lock = await wakeLock.request('screen');
+        if (cancelled || document.visibilityState !== 'visible') {
+          void lock.release().catch(() => undefined);
+        } else {
+          activeLock = lock;
+          setWakeLockUnavailable(false);
+          lock.addEventListener('release', () => {
+            if (activeLock === lock) {
+              activeLock = null;
+              if (!cancelled && document.visibilityState === 'visible') setWakeLockUnavailable(true);
+            }
+          }, { once: true });
+        }
+      } catch {
+        if (!cancelled) setWakeLockUnavailable(true);
+      } finally {
+        pending = false;
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void acquire();
+      else release();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    void acquire();
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      release();
+    };
+  }, [shouldKeepScreenAwake]);
+
+  useEffect(() => {
+    if (fullscreenMode !== 'viewport') return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFullscreenMode('none');
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [fullscreenMode]);
 
   useEffect(() => {
     const player = video.hasBackgroundAudio ? audioRef.current : videoRef.current;
@@ -216,17 +327,39 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
   function enterFullscreen() {
     const shell = shellRef.current;
     const player = videoRef.current as WebkitVideo | null;
-    if (shell?.requestFullscreen) {
-      void shell.requestFullscreen().catch(() => {
-        if (!video.hasBackgroundAudio) player?.webkitEnterFullscreen?.();
-      });
-    } else if (!video.hasBackgroundAudio) {
-      player?.webkitEnterFullscreen?.();
+    if (fullscreenMode === 'viewport') {
+      setFullscreenMode('none');
+      return;
     }
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+      return;
+    }
+    if (fullscreenMode === 'native-video') {
+      player?.webkitExitFullscreen?.();
+      return;
+    }
+
+    setWakeLockUnavailable(false);
+
+    const fallback = () => {
+      // iOS only supports native video fullscreen. Keep the separate audio controls
+      // available in viewport mode when a video has a background audio track.
+      if (!video.hasBackgroundAudio && player?.webkitEnterFullscreen) {
+        try {
+          player.webkitEnterFullscreen();
+          setFullscreenMode('native-video');
+          return;
+        } catch { /* use the viewport fallback */ }
+      }
+      setFullscreenMode('viewport');
+    };
+    if (shell?.requestFullscreen && document.fullscreenEnabled) void shell.requestFullscreen().catch(fallback);
+    else fallback();
   }
 
   return (
-    <div className={`player-shell${video.hasBackgroundAudio ? ' background-audio-player' : ''}`} ref={shellRef}>
+    <div className={`player-shell${video.hasBackgroundAudio ? ' background-audio-player' : ''}${fullscreenMode === 'viewport' ? ' viewport-fullscreen' : ''}`} ref={shellRef}>
       <video
         ref={videoRef}
         src={appPath(`/api/videos/${video.id}/stream`)}
@@ -244,8 +377,11 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
           controls preload="metadata"
         />
       )}
-      <button className="fullscreen-button" type="button" onClick={enterFullscreen} aria-label="Enter fullscreen">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M8 21H3v-5m13 5h5v-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+      {shouldKeepScreenAwake && fullscreenMode !== 'native-video' && (wakeLockUnavailable || !(navigator as WakeLockNavigator).wakeLock) && <p className="wake-lock-warning" role="status">Screen may turn off on this device</p>}
+      <button className="fullscreen-button" type="button" onClick={enterFullscreen} aria-label={fullscreenMode === 'none' ? 'Enter fullscreen' : 'Exit fullscreen'}>
+        {fullscreenMode === 'none'
+          ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M8 21H3v-5m13 5h5v-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+          : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h5V3m13 5h-5V3M3 16h5v5m13-5h-5v5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>}
       </button>
     </div>
   );
