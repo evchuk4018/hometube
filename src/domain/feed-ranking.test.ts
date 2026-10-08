@@ -99,6 +99,28 @@ test('the Home profile gives subscribed videos a meaningful score advantage', ()
   assert.ok(rankScore(subscribed, now, HOME_RANKING_POLICY) > rankScore(unsubscribed, now, HOME_RANKING_POLICY));
 });
 
+test('uneven scores cannot exhaust channel diversity before the final full group', () => {
+  // Seed 259 exhausted all but four channels before the old greedy feed's final group.
+  for (let seed = 259; seed < 279; seed += 1) {
+    let state = seed;
+    const items = Array.from({ length: 11 }, (_, channel) =>
+      Array.from({ length: 4 }, (_, index) => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return candidate({
+          videoId: `${channel}-${index}`, channelId: `channel-${channel}`,
+          refreshPenalty: state / 4294967296
+        });
+      })
+    ).flat();
+    const byId = new Map(items.map((item) => [item.videoId, item.channelId]));
+    const selected = selectRankedFeed(items, 40, HOME_RANKING_POLICY);
+    assert.equal(selected.length, 40);
+    for (let start = 0; start < selected.length; start += 5) {
+      assert.equal(new Set(selected.slice(start, start + 5).map((id) => byId.get(id))).size, 5, `seed ${seed}, group ${start / 5}`);
+    }
+  }
+});
+
 test('sparse subscriptions produce a shorter feed without filling from unsubscribed channels', () => {
   const subscribed = Array.from({ length: 2 }, (_, index) => candidate({
     videoId: `subscribed-${index}`, channelId: `subscribed-channel-${index}`

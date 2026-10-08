@@ -6,7 +6,7 @@ Set `HOMETUBE_PUID` and `HOMETUBE_PGID` to the owner of the host media directory
 
 Normal deployment:
 
-1. Test, commit, and push `main`, then create a clean release from that exact commit under `/srv/storage/wowzerbowser/hometube-releases/<commit>`. Preserve the existing checkout, its uncommitted changes, and its private `deployment.env`.
+1. Test, commit, and push `main`, then create a clean release from that exact commit under `/srv/storage/wowzerbowser/hometube-releases/<commit>`. Keep source directories readable/traversable (`0755`) and files readable (`0644`) by the container runtime identities, including the media owner's worker identity. Preserve the existing checkout, its uncommitted changes, and its private `deployment.env`.
 2. Save a protected snapshot of the old checkout and running image IDs. Back up PostgreSQL before applying migrations. Keep the existing absolute database/media mounts and the `download-vpn` network overlay.
 3. Use the storage-guarded Compose wrapper below for all startup and migration commands. Set `HOMETUBE_REVISION` to the full pushed commit so both images record their source revision.
 4. Build `web`, `worker`, and `migrate` before stopping the old worker. Stop it before migration `009_disable_ai_discovery.sql` so an in-flight legacy discovery cannot recreate trial channels.

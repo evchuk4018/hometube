@@ -77,7 +77,7 @@
 * Channels the user watches more should receive more Home feed exposure.
 * Home recommendations must come only from subscribed channels, regardless of the channel's original source.
 * Build the feed in consecutive groups of five different channels. Channels can return in later groups.
-* Select the highest-scoring available video from an unused channel within each group.
+* Select the highest-scoring available video from an unused channel within each group while preserving enough channel capacity for later groups whenever the catalog can fill the entire feed with distinct channels per group.
 * Keep a maximum of four videos per channel across the feed.
 * If fewer than five channels remain available, use each available channel before allowing repeats.
 * Keep the grouped order on initial load and refresh; never duplicate a video.

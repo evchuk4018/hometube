@@ -72,20 +72,39 @@ export function selectRankedFeed(
     .filter((candidate) => candidate.subscribed && candidate.watchState !== 'watched')
     .map((candidate) => ({ ...candidate, score: rankScore(candidate, now, policy) }))
     .sort((a, b) => b.score - a.score || a.videoId.localeCompare(b.videoId));
+  const seenVideos = new Set<string>();
+  const uniqueCandidates = scored.filter((item) => {
+    if (seenVideos.has(item.videoId)) return false;
+    seenVideos.add(item.videoId);
+    return true;
+  });
   const counts = new Map<string, number>();
+  const remaining = new Map<string, number>();
+  for (const item of uniqueCandidates) {
+    remaining.set(item.channelId, Math.min(policy.perChannelLimit, (remaining.get(item.channelId) ?? 0) + 1));
+  }
   const pickedIds = new Set<string>();
   const groupChannels = new Set<string>();
   const picked: string[] = [];
+  const target = Math.min(limit, [...remaining.values()].reduce((sum, count) => sum + count, 0));
+  const preserveFullGroups = canFinishGroups(remaining, target, 0, policy.channelGroupSize, groupChannels);
 
   const eligible = (item: typeof scored[number]) =>
     !pickedIds.has(item.videoId) && (counts.get(item.channelId) ?? 0) < policy.perChannelLimit;
 
-  while (picked.length < limit) {
+  while (picked.length < target) {
     if (picked.length % policy.channelGroupSize === 0) groupChannels.clear();
-    let next = scored.find((item) => eligible(item) && !groupChannels.has(item.channelId));
+    let next = uniqueCandidates.find((item) => {
+      if (!eligible(item) || groupChannels.has(item.channelId)) return false;
+      if (!preserveFullGroups) return true;
+      const afterPick = new Map(remaining);
+      afterPick.set(item.channelId, (afterPick.get(item.channelId) ?? 0) - 1);
+      return canFinishGroups(afterPick, target, picked.length + 1, policy.channelGroupSize,
+        new Set([...groupChannels, item.channelId]));
+    });
     if (!next) {
       // With fewer channels available, use each before starting another pass.
-      next = scored.find(eligible);
+      next = uniqueCandidates.find(eligible);
       if (!next) break;
       groupChannels.clear();
     }
@@ -93,9 +112,40 @@ export function selectRankedFeed(
     pickedIds.add(next.videoId);
     groupChannels.add(next.channelId);
     counts.set(next.channelId, (counts.get(next.channelId) ?? 0) + 1);
+    remaining.set(next.channelId, (remaining.get(next.channelId) ?? 0) - 1);
   }
 
   return picked;
+}
+
+function canFinishGroups(
+  available: ReadonlyMap<string, number>,
+  target: number,
+  picked: number,
+  groupSize: number,
+  usedInGroup: ReadonlySet<string>
+): boolean {
+  const remaining = target - picked;
+  const currentSlots = Math.min(remaining, (groupSize - picked % groupSize) % groupSize);
+  const laterSlots = remaining - currentSlots;
+  const fullGroups = Math.floor(laterSlots / groupSize);
+  const partialSlots = laterSlots % groupSize;
+  // Each channel can fill one slot per group. Check every combination of
+  // unfinished/current, full, and final partial groups before consuming a cap.
+  for (let full = 0; full <= fullGroups; full += 1) {
+    for (let partial = 0; partial <= (partialSlots > 0 ? 1 : 0); partial += 1) {
+      for (let current = 0; current <= (currentSlots > 0 ? 1 : 0); current += 1) {
+        const needed = full * groupSize + partial * partialSlots + current * currentSlots;
+        let capacity = 0;
+        for (const [channelId, count] of available) {
+          const groups = full + partial + (current && !usedInGroup.has(channelId) ? 1 : 0);
+          capacity += Math.min(count, groups);
+        }
+        if (capacity < needed) return false;
+      }
+    }
+  }
+  return true;
 }
 
 export function playbackState(positionSeconds: number, durationSeconds: number, threshold = 0.8) {
