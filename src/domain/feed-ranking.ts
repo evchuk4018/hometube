@@ -3,7 +3,6 @@ export const REFRESH_PENALTY = 0.07;
 export type RankingCandidate = {
   videoId: string;
   channelId: string;
-  trial: boolean;
   subscribed: boolean;
   watchState: 'unwatched' | 'in_progress' | 'watched';
   watchPercentage: number | null;
@@ -16,19 +15,19 @@ export type RankingCandidate = {
 };
 
 export type RankingPolicy = {
-  trialShare: number;
+  channelGroupSize: number;
   subscribedBonus: number;
   perChannelLimit: number;
 };
 
 export const DEFAULT_RANKING_POLICY: RankingPolicy = {
-  trialShare: 0.2,
+  channelGroupSize: 5,
   subscribedBonus: 0.05,
   perChannelLimit: 4
 };
 
 export const HOME_RANKING_POLICY: RankingPolicy = {
-  trialShare: 0.1,
+  channelGroupSize: 5,
   subscribedBonus: 0.2,
   perChannelLimit: 4
 };
@@ -70,30 +69,33 @@ export function selectRankedFeed(
   now = new Date()
 ): string[] {
   const scored = candidates
-    .filter((candidate) => candidate.watchState !== 'watched')
-    .map((candidate) => ({ ...candidate, score: rankScore(candidate, now, policy) }));
-  const trialTarget = Math.min(Math.round(limit * policy.trialShare), scored.filter((item) => item.trial).length);
-  const establishedTarget = Math.max(0, limit - trialTarget);
+    .filter((candidate) => candidate.subscribed && candidate.watchState !== 'watched')
+    .map((candidate) => ({ ...candidate, score: rankScore(candidate, now, policy) }))
+    .sort((a, b) => b.score - a.score || a.videoId.localeCompare(b.videoId));
   const counts = new Map<string, number>();
+  const pickedIds = new Set<string>();
+  const groupChannels = new Set<string>();
+  const picked: string[] = [];
 
-  function take(pool: typeof scored, target: number): typeof scored {
-    const picked: typeof scored = [];
-    for (const item of pool.sort((a, b) => b.score - a.score || a.videoId.localeCompare(b.videoId))) {
-      if (picked.length >= target) break;
-      const count = counts.get(item.channelId) ?? 0;
-      if (count >= policy.perChannelLimit) continue;
-      counts.set(item.channelId, count + 1);
-      picked.push(item);
+  const eligible = (item: typeof scored[number]) =>
+    !pickedIds.has(item.videoId) && (counts.get(item.channelId) ?? 0) < policy.perChannelLimit;
+
+  while (picked.length < limit) {
+    if (picked.length % policy.channelGroupSize === 0) groupChannels.clear();
+    let next = scored.find((item) => eligible(item) && !groupChannels.has(item.channelId));
+    if (!next) {
+      // With fewer channels available, use each before starting another pass.
+      next = scored.find(eligible);
+      if (!next) break;
+      groupChannels.clear();
     }
-    return picked;
+    picked.push(next.videoId);
+    pickedIds.add(next.videoId);
+    groupChannels.add(next.channelId);
+    counts.set(next.channelId, (counts.get(next.channelId) ?? 0) + 1);
   }
 
-  const established = take(scored.filter((item) => !item.trial), establishedTarget);
-  const trials = take(scored.filter((item) => item.trial), trialTarget);
-  const pickedIds = new Set([...established, ...trials].map((item) => item.videoId));
-  const remaining = take(scored.filter((item) => !pickedIds.has(item.videoId)), limit - established.length - trials.length);
-  const combined = [...established, ...trials, ...remaining].sort((a, b) => b.score - a.score || a.videoId.localeCompare(b.videoId));
-  return combined.map((item) => item.videoId);
+  return picked;
 }
 
 export function playbackState(positionSeconds: number, durationSeconds: number, threshold = 0.8) {

@@ -14,6 +14,14 @@ export type QueueDismissal = {
   excludedChannelIds: string[];
 };
 
+export function filterSubscribedQueue(
+  queue: AutoplayQueueItem[],
+  subscribedChannelIds: ReadonlySet<string>,
+  currentVideoId: string | null
+): AutoplayQueueItem[] {
+  return queue.filter((item) => item.videoId === currentVideoId || subscribedChannelIds.has(item.channelId));
+}
+
 export function buildQueue(
   current: AutoplayQueueItem,
   existingQueue: AutoplayQueueItem[],

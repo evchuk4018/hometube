@@ -18,6 +18,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+      args:
+        APP_REVISION: ${HOMETUBE_REVISION:-unknown}
     environment:
       DATABASE_URL: postgresql://${HOMETUBE_POSTGRES_USER:-hometube}:${HOMETUBE_POSTGRES_PASSWORD:-change-me}@postgres:5432/${HOMETUBE_POSTGRES_DB:-hometube}
     depends_on:
@@ -32,13 +34,13 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/hometube}
+        APP_REVISION: ${HOMETUBE_REVISION:-unknown}
     environment:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
       DATABASE_URL: postgresql://${HOMETUBE_POSTGRES_USER:-hometube}:${HOMETUBE_POSTGRES_PASSWORD:-change-me}@postgres:5432/${HOMETUBE_POSTGRES_DB:-hometube}
       HOMETUBE_MEDIA_ROOT: /media
-      HOMETUBE_HOME_TRIAL_SHARE: ${HOMETUBE_HOME_TRIAL_SHARE:-0.1}
       HOMETUBE_HOME_SUBSCRIBED_BONUS: ${HOMETUBE_HOME_SUBSCRIBED_BONUS:-0.2}
       NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH:-/hometube}
     volumes:
@@ -59,6 +61,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+      args:
+        APP_REVISION: ${HOMETUBE_REVISION:-unknown}
     environment:
       NODE_ENV: production
       HOME: /tmp
@@ -66,12 +70,7 @@ services:
       HOMETUBE_MEDIA_ROOT: /media
       WORKER_PORT: 4000
       WORKER_POLL_MS: ${WORKER_POLL_MS:-1500}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_DISCOVERY_MODEL: ${OPENROUTER_DISCOVERY_MODEL:-openrouter/auto}
-      CHANNEL_DISCOVERY_INTERVAL_MS: ${CHANNEL_DISCOVERY_INTERVAL_MS:-604800000}
-      CHANNEL_DISCOVERY_RETRY_MS: ${CHANNEL_DISCOVERY_RETRY_MS:-21600000}
       CHANNEL_REFRESH_SUBSCRIBED_MS: ${CHANNEL_REFRESH_SUBSCRIBED_MS:-21600000}
-      CHANNEL_REFRESH_TRIAL_MS: ${CHANNEL_REFRESH_TRIAL_MS:-86400000}
       YTDLP_COMMAND: yt-dlp
       FFMPEG_COMMAND: ffmpeg
       FFPROBE_COMMAND: ffprobe

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { query, transaction } from '@/server/db/client';
 import type { JobSummary } from '@/protocol/schemas';
 
-export type JobType = 'import_channel' | 'download_video' | 'discover_channels';
+export type JobType = JobSummary['type'];
 export type ClaimedJob = JobSummary & {
   channelId: string | null;
   videoId: string | null;
@@ -68,46 +68,17 @@ export async function enqueueVideoDownload(videoId: string, channelId: string): 
   return mapJob(rows[0]);
 }
 
-export async function enqueueChannelDiscovery(): Promise<JobSummary> {
-  const rows = await query<JobRow>(`
-    INSERT INTO jobs (id, type)
-    VALUES ($1, 'discover_channels')
-    ON CONFLICT (type) WHERE type = 'discover_channels' AND status IN ('queued', 'running')
-    DO UPDATE SET
-      status = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN 'queued' ELSE jobs.status END,
-      lease_owner = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN NULL ELSE jobs.lease_owner END,
-      lease_expires_at = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN NULL ELSE jobs.lease_expires_at END,
-      stage = CASE WHEN jobs.status = 'running' AND (jobs.lease_expires_at IS NULL OR jobs.lease_expires_at < now()) THEN 'Queued' ELSE jobs.stage END,
-      updated_at = now()
-    RETURNING *
-  `, [randomUUID()]);
-  return mapJob(rows[0]);
-}
-
 export async function scheduleDueJobs(now = new Date()): Promise<void> {
   const subscribedMs = positiveNumber(process.env.CHANNEL_REFRESH_SUBSCRIBED_MS, 6 * 60 * 60 * 1000);
-  const trialMs = positiveNumber(process.env.CHANNEL_REFRESH_TRIAL_MS, 24 * 60 * 60 * 1000);
-  const discoveryMs = positiveNumber(process.env.CHANNEL_DISCOVERY_INTERVAL_MS, 7 * 24 * 60 * 60 * 1000);
-  const discoveryRetryMs = positiveNumber(process.env.CHANNEL_DISCOVERY_RETRY_MS, 6 * 60 * 60 * 1000);
   await query(`
     INSERT INTO jobs (id, type, channel_id)
     SELECT gen_random_uuid(), 'import_channel', c.id
     FROM channels c
-    WHERE (c.is_subscribed = true AND COALESCE(c.last_imported_at, '-infinity') < $1::timestamptz)
-       OR (c.trial_status = 'active' AND COALESCE(c.last_imported_at, '-infinity') < $2::timestamptz)
+    WHERE c.is_subscribed = true
+      AND COALESCE(c.last_imported_at, '-infinity') < $1::timestamptz
     ON CONFLICT (channel_id) WHERE type = 'import_channel' AND status IN ('queued', 'running')
     DO NOTHING
-  `, [new Date(now.getTime() - subscribedMs), new Date(now.getTime() - trialMs)]);
-  const due = await query<{ due: boolean }>(`
-    SELECT EXISTS (SELECT 1 FROM channels)
-      AND NOT EXISTS (
-        SELECT 1 FROM discovery_runs WHERE status = 'ready' AND started_at >= $1
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM discovery_runs WHERE started_at >= $2
-      ) AS due
-  `, [new Date(now.getTime() - discoveryMs), new Date(now.getTime() - discoveryRetryMs)]);
-  if (due[0]?.due) await enqueueChannelDiscovery();
+  `, [new Date(now.getTime() - subscribedMs)]);
 }
 
 function positiveNumber(value: string | undefined, fallback: number): number {
@@ -143,11 +114,11 @@ export async function claimNextJob(workerId: string): Promise<ClaimedJob | null>
   return transaction(async (client) => {
     const result = await client.query<JobRow>(`
       SELECT * FROM jobs
-      WHERE (
+      WHERE type IN ('import_channel', 'download_video') AND (
         (status = 'queued' AND attempt_count < 3)
         OR (status = 'running' AND (lease_expires_at IS NULL OR lease_expires_at < now()))
       )
-      ORDER BY CASE type WHEN 'download_video' THEN 0 WHEN 'import_channel' THEN 1 ELSE 2 END, created_at
+      ORDER BY CASE type WHEN 'download_video' THEN 0 ELSE 1 END, created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
     `);
@@ -157,7 +128,6 @@ export async function claimNextJob(workerId: string): Promise<ClaimedJob | null>
         lease_owner = $2, lease_expires_at = now() + interval '5 minutes',
         stage = CASE
           WHEN type = 'import_channel' THEN 'Reading channel'
-          WHEN type = 'discover_channels' THEN 'Finding channels'
           ELSE 'Starting download'
         END,
         error = NULL, updated_at = now()

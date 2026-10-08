@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildQueue,
   dismissQueuedVideo,
+  filterSubscribedQueue,
   QUEUE_SIZE,
   queueSessionExcludedChannels,
   type AutoplayCandidate,
@@ -20,6 +21,25 @@ function candidate(videoId: string, channelId = videoId, watchState: AutoplayCan
 function ids(queue: AutoplayQueueItem[]): string[] {
   return queue.map((entry) => entry.videoId);
 }
+
+test('filters saved upcoming entries by subscription without changing their order', () => {
+  const queue = filterSubscribedQueue(
+    [item('current', 'unsubscribed'), item('drop', 'unsubscribed'), item('b', 'subscribed'), item('c', 'subscribed-ai')],
+    new Set(['subscribed', 'subscribed-ai']),
+    'current'
+  );
+  assert.deepEqual(ids(queue), ['current', 'b', 'c']);
+});
+
+test('only the actual current video survives when its channel is unsubscribed', () => {
+  const queue = filterSubscribedQueue([item('old', 'trial'), item('current', 'trial'), item('next', 'trial')], new Set(), 'current');
+  assert.deepEqual(ids(queue), ['current']);
+});
+
+test('an unsubscribed queue head is removed when there is no current playback session', () => {
+  const queue = filterSubscribedQueue([item('old', 'trial'), item('subscribed', 'user')], new Set(['user']), null);
+  assert.deepEqual(ids(queue), ['subscribed']);
+});
 
 test('starts a fresh queue from the current video and fills from ranked candidates', () => {
   const queue = buildQueue(item('a', 'cha'), [], [candidate('x', 'chx'), candidate('y', 'chy'), candidate('z', 'chz')]);

@@ -107,32 +107,6 @@ export async function upsertSubscribedChannel(sourceUrl: string, name: string): 
   return channel;
 }
 
-export async function createAiTrialChannel(
-  sourceUrl: string,
-  youtubeChannelId: string | null,
-  name: string,
-  reason: string | null
-): Promise<ChannelSummary | null> {
-  const inserted = await query<{ id: string }>(`
-    INSERT INTO channels (
-      id, source_url, youtube_channel_id, name, source, is_subscribed, trial_status, discovered_at, discovery_reason
-    ) VALUES ($1, $2, $3, $4, 'ai_recommendation', false, 'active', now(), $5)
-    ON CONFLICT (source_url) DO NOTHING
-    RETURNING id
-  `, [randomUUID(), sourceUrl, youtubeChannelId, name, reason]);
-  return inserted[0] ? getChannel(inserted[0].id) : null;
-}
-
-export async function hasKnownChannel(sourceUrl: string, youtubeChannelId: string | null): Promise<boolean> {
-  const rows = await query<{ known: boolean }>(`
-    SELECT EXISTS (
-      SELECT 1 FROM channels
-      WHERE source_url = $1 OR ($2::text IS NOT NULL AND youtube_channel_id = $2)
-    ) AS known
-  `, [sourceUrl, youtubeChannelId]);
-  return rows[0]?.known ?? false;
-}
-
 export async function listSubscribedChannels(): Promise<ChannelSummary[]> {
   const rows = await query<ChannelRow>(`
     ${channelSelect}
@@ -146,30 +120,6 @@ export async function listSubscribedChannels(): Promise<ChannelSummary[]> {
 export async function setChannelSubscription(channelId: string, subscribed: boolean): Promise<ChannelSummary | null> {
   await query(`UPDATE channels SET is_subscribed = $2, updated_at = now() WHERE id = $1`, [channelId, subscribed]);
   return getChannel(channelId);
-}
-
-export async function listKnownChannelUrls(): Promise<string[]> {
-  const rows = await query<{ source_url: string }>(`
-    SELECT source_url FROM channels
-    UNION
-    SELECT source_url FROM discovery_candidates WHERE source_url IS NOT NULL
-    ORDER BY source_url
-  `);
-  return rows.map((row) => row.source_url);
-}
-
-export async function listDiscoveryContextChannels(limit = 10): Promise<Array<{ name: string; handle: string | null; sourceUrl: string }>> {
-  return query(`
-    SELECT c.name, c.handle, c.source_url AS "sourceUrl"
-    FROM channels c
-    LEFT JOIN videos v ON v.channel_id = c.id
-    GROUP BY c.id
-    ORDER BY
-      COALESCE(sum(v.watch_percentage * power(0.5, extract(epoch FROM (now() - v.last_watched_at)) / 2592000))
-        FILTER (WHERE v.last_watched_at IS NOT NULL), 0) DESC,
-      c.is_subscribed DESC, c.updated_at DESC
-    LIMIT $1
-  `, [limit]);
 }
 
 export async function getChannel(value: string, field: 'id' | 'source_url' = 'id'): Promise<ChannelSummary | null> {

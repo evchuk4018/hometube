@@ -14,5 +14,4 @@ test('catalog extraction uses timeout to avoid hanging', async () => {
   const fs = await import('node:fs');
   const source = fs.readFileSync(new URL('./yt-dlp-adapter.ts', import.meta.url), 'utf8');
   assert.match(source, /timeoutMs: 90_000/);
-  assert.match(source, /timeoutMs: 60_000/);
 });

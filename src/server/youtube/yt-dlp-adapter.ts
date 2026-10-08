@@ -1,5 +1,4 @@
 import { channelCatalogUrls } from '@/domain/youtube-url';
-import type { ChannelSummary } from '@/protocol/schemas';
 import type { ImportedChannel, ImportedVideo } from '@/server/channels/channel-repository';
 import { runProcess } from './process-runner';
 
@@ -81,15 +80,12 @@ export function mapCatalogEntry(entry: YtDlpEntry): CatalogEntry | null {
 
 export async function importChannelCatalog(
   sourceUrl: string,
-  source: ChannelSummary['source'],
-  subscribed: boolean,
   onEntry: (entry: CatalogEntry, importedCount: number) => Promise<void>
 ): Promise<number> {
   let importedCount = 0;
   const seen = new Set<string>();
-  const recentLimit = source === 'ai_recommendation' && !subscribed ? 10 : 100;
   const targets = [
-    ...channelCatalogUrls(sourceUrl).map((url) => ({ url, limit: recentLimit })),
+    ...channelCatalogUrls(sourceUrl).map((url) => ({ url, limit: 100 })),
     { url: `${sourceUrl}/videos?view=0&sort=p&flow=grid`, limit: 10 }
   ];
   for (const target of targets) {
@@ -117,20 +113,4 @@ export async function importChannelCatalog(
     }
   }
   return importedCount;
-}
-
-export async function validateChannelUrl(sourceUrl: string): Promise<{ name: string; youtubeChannelId: string | null }> {
-  let found: CatalogEntry | null = null;
-  await runProcess(process.env.YTDLP_COMMAND ?? 'yt-dlp', buildCatalogArgs(`${sourceUrl}/videos`, 1), {
-    timeoutMs: 60_000,
-    onStdoutLine: (line) => {
-      try {
-        const mapped = mapCatalogEntry(JSON.parse(line) as YtDlpEntry);
-        if (mapped) found = mapped;
-      } catch { /* validation ignores non-JSON output */ }
-    }
-  });
-  if (!found) throw new Error('No public channel videos were found.');
-  const entry = found as CatalogEntry;
-  return { name: entry.channel.name ?? sourceUrl.split('/').at(-1) ?? 'YouTube channel', youtubeChannelId: entry.channel.youtubeChannelId };
 }

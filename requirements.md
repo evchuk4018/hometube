@@ -40,7 +40,7 @@
 * Create a self-hosted YouTube replacement focused on:
     * Local playback
     * Automatic downloading
-    * Channel discovery
+    * User-managed channel subscriptions
     * Personalized recommendations
     * Podcast consumption
 * The application must be a PWA.
@@ -75,11 +75,12 @@
 * Home must prioritize unwatched videos.
 * Home recommendations must be influenced heavily by channel preference.
 * Channels the user watches more should receive more Home feed exposure.
-* Home should contain a mixture of:
-    * Videos from established preferred channels
-    * Videos from newly recommended channels
-    * Recent uploads
-    * Less-established or diversity recommendations
+* Home recommendations must come only from subscribed channels, regardless of the channel's original source.
+* Build the feed in consecutive groups of five different channels. Channels can return in later groups.
+* Select the highest-scoring available video from an unused channel within each group.
+* Keep a maximum of four videos per channel across the feed.
+* If fewer than five channels remain available, use each available channel before allowing repeats.
+* Keep the grouped order on initial load and refresh; never duplicate a video.
 * The feed should continuously replenish as videos are watched or removed.
 * Home must display whether each video is:
     * Downloaded
@@ -87,7 +88,6 @@
     * Unwatched
     * In progress
     * Watched
-* Videos from newly recommended channels should primarily use that channel’s most-viewed unwatched videos.
 * Home should not require every displayed video to already be downloaded.
 * Selecting an undownloaded video must allow the system to acquire it for local playback.
 * Any video acquired for local playback must be downloaded at 720p or lower.
@@ -102,7 +102,7 @@
 * This includes:
     * User-selected/subscribed channels
     * Pre-seeded channels
-    * AI-recommended channels
+    * Previously AI-recommended channels retained as historical records
     * Previously evaluated channels
     * Podcast channels
 * The initial system should support roughly 100 pre-seeded channels.
@@ -150,39 +150,19 @@
     * Podcast
 * Channels receiving more meaningful viewing should rank higher.
 * Channels repeatedly ignored or abandoned should rank lower.
-* The system should maintain approximately the top 10 channels as the strongest preference signal for AI discovery.
 * A single successfully watched video must not immediately overwhelm substantial historical evidence from other channels.
 * Channel preference should evolve automatically from actual viewing behavior.
 * Users must not need to manually like or dislike content for the recommendation engine to work.
 
-## AI Channel Discovery
+## Subscription Eligibility
 
-* Use OpenRouter-accessible AI models for channel discovery.
-* Periodically use approximately the user’s top 10 channels as the primary preference context.
-* Ask the AI to propose approximately 10 additional YouTube channels likely to interest the user.
-* AI recommendations should be treated as candidates, not automatically trusted preferences.
-* Recommendation generation should run periodically.
-* The exact recommendation cadence must be configurable.
-* The system must remember previously evaluated channels.
-* Previously rejected or pruned channels must retain historical engagement information.
-* The system should avoid repeatedly recommending the same rejected channel without new justification.
-* AI discovery is responsible primarily for finding channels, not individually selecting every video in the feed.
-* Actual user viewing behavior determines whether an AI-recommended channel survives.
-
-## New Channel Evaluation
-
-* Newly discovered channels must enter an evaluation/trial state.
-* For a new channel, identify approximately its 10 most-viewed videos that the user has not already watched.
-* The age of these videos is not important.
-* It is acceptable if the videos no longer represent the channel’s current style.
-* The goal is to expose the user to the channel’s strongest historically popular content.
-* Already-watched videos must not be selected for the trial pool.
-* Trial videos should be eligible for Home recommendations.
-* Trial videos that are downloaded must be limited to 720p or lower.
-* Engagement with trial videos should update the channel’s ranking.
-* Strong engagement should allow the channel to become an established recommendation source.
-* Lack of engagement over a configurable period should cause the channel to be pruned from active recommendations.
-* Pruning a channel must not erase historical information about that channel.
+* AI channel discovery and automatic trial-channel refresh are disabled.
+* Only subscribed channels may supply Home or upcoming autoplay recommendations.
+* Existing unsubscribed AI trials must leave active recommendations without losing metadata, watch history, or local media.
+* Previously AI-discovered channels remain eligible when explicitly subscribed.
+* Saved upcoming queue entries must respect current subscription status.
+* The explicitly current video may keep playing after its channel is unsubscribed.
+* Legacy discovery job and channel provenance data must remain readable for historical compatibility.
 
 ## Watch State
 
@@ -195,9 +175,7 @@
 * A configurable completion threshold should automatically mark a video as watched.
 * Watched state must survive deletion of the local media file.
 * A video known to have been watched should not be reintroduced as a new recommendation simply because its local file was deleted.
-* Watch history must be usable by both:
-    * Feed ranking
-    * AI channel discovery
+* Watch history must be usable by feed ranking.
 
 ## Podcasts Page
 
@@ -259,7 +237,7 @@
 * General deletion priority should favor removing:
     * Watched normal videos
     * Videos belonging to pruned channels
-    * Ignored trial or recommendation videos
+    * Ignored recommendation videos
     * Older low-ranked normal videos
 * Podcast Channel episodes that are still unwatched or in progress must have higher storage priority than ordinary cached recommendations.
 * Manually protected or pinned individual videos must not be automatically deleted.
@@ -272,7 +250,6 @@
 * Normal channels should not automatically require every video to be downloaded.
 * The system should selectively download content useful to the current feed.
 * Established normal channels should have a limited rotating collection of locally available unwatched videos.
-* Newly recommended channels should be allowed a trial collection based on their top-viewed unwatched videos.
 * Podcast Channels must automatically download every new upload.
 * Download state must be visible in the UI.
 * The user must be able to manually request a download.
@@ -322,9 +299,9 @@
 
 ## Core Product Principle
 
-* AI decides what new channels are worth testing.
-* User behavior decides which channels survive.
-* Channel preference decides what dominates Home.
+* User subscriptions decide which channels supply recommendations.
+* User behavior determines channel preference.
+* Channel preference and five-channel groups determine Home exposure.
 * The metadata catalog determines what can be browsed.
 * The 256 GB rotating cache determines what is immediately available locally.
 * Podcast Channel status determines what must always be automatically acquired regardless of recommendation score.

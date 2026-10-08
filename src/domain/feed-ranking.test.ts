@@ -7,7 +7,7 @@ import {
 
 function candidate(overrides: Partial<RankingCandidate> & Pick<RankingCandidate, 'videoId' | 'channelId'>): RankingCandidate {
   return {
-    trial: false, subscribed: true, watchState: 'unwatched', watchPercentage: 0, uploadDate: '2026-08-12',
+    subscribed: true, watchState: 'unwatched', watchPercentage: 0, uploadDate: '2026-08-12',
     viewCount: 100, channelViewMax: 1000, channelWeightedWatch: 0, channelEvidence: 0, refreshPenalty: 0,
     ...overrides
   };
@@ -45,61 +45,100 @@ test('in-progress videos under fifty percent outrank over-fifty percent ones', (
   assert.ok(rankScore(barelyStarted, now) > rankScore(mostlyWatched, now));
 });
 
-test('feed excludes watched videos, reserves trials, and caps channels', () => {
+test('feed excludes watched and unsubscribed videos and caps channels', () => {
   const items = [
     ...Array.from({ length: 10 }, (_, index) => candidate({ videoId: `a${index}`, channelId: 'a' })),
-    ...Array.from({ length: 6 }, (_, index) => candidate({ videoId: `b${index}`, channelId: `b${index}`, trial: true })),
-    candidate({ videoId: 'watched', channelId: 'z', watchState: 'watched' })
+    ...Array.from({ length: 6 }, (_, index) => candidate({ videoId: `b${index}`, channelId: `b${index}` })),
+    candidate({ videoId: 'watched', channelId: 'z', watchState: 'watched' }),
+    candidate({ videoId: 'unsubscribed', channelId: 'y', subscribed: false, channelWeightedWatch: 100, channelEvidence: 100 })
   ];
   const selected = selectRankedFeed(items, 10, DEFAULT_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
   assert.equal(selected.length, 10);
   assert.equal(selected.filter((id) => id.startsWith('a')).length, 4);
   assert.equal(selected.filter((id) => id.startsWith('b')).length, 6);
   assert.ok(!selected.includes('watched'));
+  assert.ok(!selected.includes('unsubscribed'));
 });
 
-test('a full feed uses a thirty-two to eight established/trial mix', () => {
-  const established = Array.from({ length: 40 }, (_, index) => candidate({
-    videoId: `established-${index}`, channelId: `established-channel-${Math.floor(index / 4)}`
-  }));
-  const trials = Array.from({ length: 20 }, (_, index) => candidate({
-    videoId: `trial-${index}`, channelId: `trial-channel-${Math.floor(index / 4)}`, trial: true, subscribed: false
-  }));
-  const selected = selectRankedFeed([...established, ...trials], 40, DEFAULT_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
-  assert.equal(selected.filter((id) => id.startsWith('established-')).length, 32);
-  assert.equal(selected.filter((id) => id.startsWith('trial-')).length, 8);
+test('a dominant channel appears once in each five-channel group and at most four times overall', () => {
+  const items = ['a', 'b', 'c', 'd', 'e'].flatMap((channelId) =>
+    Array.from({ length: 20 }, (_, index) => candidate({
+      videoId: `${channelId}${String(index).padStart(2, '0')}`, channelId,
+      channelWeightedWatch: channelId === 'a' ? 10 : 0, channelEvidence: 10
+    }))
+  );
+  const selected = selectRankedFeed(items, 40, HOME_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
+  assert.equal(selected.length, 20);
+  for (let start = 0; start < selected.length; start += 5) {
+    assert.deepEqual(selected.slice(start, start + 5).map((id) => id[0]), ['a', 'b', 'c', 'd', 'e']);
+  }
+  assert.equal(selected.filter((id) => id.startsWith('a')).length, 4);
 });
 
-test('the Home profile uses a thirty-six to four subscribed/trial mix', () => {
-  const subscribed = Array.from({ length: 40 }, (_, index) => candidate({
-    videoId: `subscribed-${index}`, channelId: `subscribed-channel-${index}`
-  }));
-  const trials = Array.from({ length: 20 }, (_, index) => candidate({
-    videoId: `trial-${index}`, channelId: `trial-channel-${index}`, trial: true, subscribed: false
-  }));
-  const selected = selectRankedFeed([...subscribed, ...trials], 40, HOME_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
-  assert.equal(selected.filter((id) => id.startsWith('subscribed-')).length, 36);
-  assert.equal(selected.filter((id) => id.startsWith('trial-')).length, 4);
+test('a full forty-video feed preserves diversity in every consecutive group', () => {
+  const items = Array.from({ length: 11 }, (_, channel) =>
+    Array.from({ length: 8 }, (_, index) => candidate({
+      videoId: `${String(channel).padStart(2, '0')}-${index}`, channelId: `channel-${channel}`
+    }))
+  ).flat();
+  const selected = selectRankedFeed(items, 40, HOME_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
+  const byId = new Map(items.map((item) => [item.videoId, item.channelId]));
+  assert.equal(selected.length, 40);
+  for (let start = 0; start < selected.length; start += 5) {
+    assert.equal(new Set(selected.slice(start, start + 5).map((id) => byId.get(id))).size, 5);
+  }
+  for (const channelId of new Set(items.map((item) => item.channelId))) {
+    assert.ok(selected.filter((id) => byId.get(id) === channelId).length <= 4);
+  }
 });
 
 test('the Home profile gives subscribed videos a meaningful score advantage', () => {
   const now = new Date('2026-08-13T12:00:00Z');
   const subscribed = candidate({ videoId: 'subscribed', channelId: 'subscribed-channel' });
-  const trial = candidate({ videoId: 'trial', channelId: 'trial-channel', trial: true, subscribed: false });
-  assert.ok(rankScore(subscribed, now, HOME_RANKING_POLICY) > rankScore(trial, now, HOME_RANKING_POLICY));
+  const unsubscribed = candidate({ videoId: 'unsubscribed', channelId: 'other-channel', subscribed: false });
+  assert.ok(rankScore(subscribed, now, HOME_RANKING_POLICY) > rankScore(unsubscribed, now, HOME_RANKING_POLICY));
 });
 
-test('the Home profile fills the feed with trials when subscriptions are sparse', () => {
+test('sparse subscriptions produce a shorter feed without filling from unsubscribed channels', () => {
   const subscribed = Array.from({ length: 2 }, (_, index) => candidate({
     videoId: `subscribed-${index}`, channelId: `subscribed-channel-${index}`
   }));
-  const trials = Array.from({ length: 12 }, (_, index) => candidate({
-    videoId: `trial-${index}`, channelId: `trial-channel-${index}`, trial: true, subscribed: false
+  const unsubscribed = Array.from({ length: 12 }, (_, index) => candidate({
+    videoId: `unsubscribed-${index}`, channelId: `other-channel-${index}`, subscribed: false
   }));
-  const selected = selectRankedFeed([...subscribed, ...trials], 10, HOME_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
-  assert.equal(selected.length, 10);
-  assert.equal(selected.filter((id) => id.startsWith('subscribed-')).length, 2);
-  assert.equal(selected.filter((id) => id.startsWith('trial-')).length, 8);
+  const selected = selectRankedFeed([...subscribed, ...unsubscribed], 10, HOME_RANKING_POLICY, new Date('2026-08-13T12:00:00Z'));
+  assert.deepEqual(selected, ['subscribed-0', 'subscribed-1']);
+});
+
+test('a channel shortage uses every available channel before repeats and respects exhaustion', () => {
+  const items = [
+    ...Array.from({ length: 7 }, (_, index) => candidate({ videoId: `a${index}`, channelId: 'a' })),
+    ...Array.from({ length: 2 }, (_, index) => candidate({ videoId: `b${index}`, channelId: 'b' })),
+    candidate({ videoId: 'c0', channelId: 'c' })
+  ];
+  assert.deepEqual(selectRankedFeed(items, 40, HOME_RANKING_POLICY), ['a0', 'b0', 'c0', 'a1', 'b1', 'a2', 'a3']);
+});
+
+test('shortage passes reset at fixed five-video boundaries', () => {
+  const items = ['a', 'b', 'c', 'd'].flatMap((channelId) =>
+    Array.from({ length: 4 }, (_, index) => candidate({ videoId: `${channelId}${index}`, channelId }))
+  );
+  assert.deepEqual(selectRankedFeed(items, 10, HOME_RANKING_POLICY), [
+    'a0', 'b0', 'c0', 'd0', 'a1',
+    'a2', 'b1', 'c1', 'd1', 'a3'
+  ]);
+});
+
+test('ties are deterministic across input order, duplicate candidates, and partial groups', () => {
+  const items = ['a', 'b', 'c', 'd', 'e'].flatMap((channelId) =>
+    Array.from({ length: 2 }, (_, index) => candidate({ videoId: `${channelId}${index}`, channelId }))
+  );
+  const expected = ['a0', 'b0', 'c0', 'd0', 'e0', 'a1', 'b1'];
+  assert.deepEqual(selectRankedFeed([...items, items[0]], 7, HOME_RANKING_POLICY), expected);
+  assert.deepEqual(selectRankedFeed([...items].reverse(), 7, HOME_RANKING_POLICY), expected);
+  assert.deepEqual(selectRankedFeed(items, 3, HOME_RANKING_POLICY), expected.slice(0, 3));
+  assert.deepEqual(selectRankedFeed(items, 0, HOME_RANKING_POLICY), []);
+  assert.deepEqual(selectRankedFeed([], 40, HOME_RANKING_POLICY), []);
 });
 
 test('a refresh penalty lowers the video ranking score', () => {

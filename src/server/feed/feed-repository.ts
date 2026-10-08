@@ -10,7 +10,6 @@ import { clearCurrentVideoIfMatching, setCurrentVideo } from '@/server/playback/
 
 type FeedRow = VideoRow & {
   is_subscribed: boolean;
-  trial_status: string;
   channel_view_max: string;
   channel_weighted_watch: string;
   channel_evidence: string;
@@ -48,7 +47,7 @@ export async function listRankedFeedRows(): Promise<FeedRow[]> {
         (m.audio_relative_path IS NOT NULL) AS has_background_audio,
         v.watch_state, v.playback_position_seconds::text,
         v.playback_duration_seconds::text, v.watch_percentage::text,
-        c.is_subscribed, c.trial_status,
+        c.is_subscribed,
         COALESCE(max(v.view_count) OVER (PARTITION BY v.channel_id), 0)::text AS channel_view_max,
         cs.weighted_watch::text AS channel_weighted_watch,
         cs.evidence::text AS channel_evidence,
@@ -59,7 +58,7 @@ export async function listRankedFeedRows(): Promise<FeedRow[]> {
       LEFT JOIN media_files m ON m.video_id = v.id
       LEFT JOIN feed_refresh_penalties fp ON fp.video_id = v.id
       WHERE v.watch_state <> 'watched'
-        AND (c.is_subscribed = true OR c.trial_status = 'active')
+        AND c.is_subscribed = true
         AND v.availability NOT IN ('private', 'premium_only', 'subscriber_only', 'unavailable')
         AND COALESCE(v.live_status, '') NOT IN ('is_live', 'is_upcoming')
     )
@@ -71,7 +70,6 @@ export function rankingCandidates(rows: FeedRow[]): RankingCandidate[] {
   return rows.map((row) => ({
     videoId: row.id,
     channelId: row.channel_id,
-    trial: !row.is_subscribed && row.trial_status === 'active',
     subscribed: row.is_subscribed,
     watchState: row.watch_state,
     watchPercentage: row.watch_percentage === null ? null : Number(row.watch_percentage),

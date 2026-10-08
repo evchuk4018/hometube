@@ -23,7 +23,7 @@ test('claimNextJob handles null lease and does not starve queued jobs', () => {
 test('enqueue functions reset expired running leases', () => {
   // Each enqueue should reset stale running to queued
   const enqueueMatches = source.match(/DO UPDATE SET[\s\S]*?status = CASE WHEN jobs\.status = 'running'/g) ?? [];
-  assert.equal(enqueueMatches.length, 3, 'all three enqueue functions should handle stale lease reset');
+  assert.equal(enqueueMatches.length, 2, 'both supported enqueue functions should handle stale lease reset');
   assert.match(source, /lease_expires_at IS NULL OR lease_expires_at < now\(\)/);
 });
 
