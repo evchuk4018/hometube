@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
-import { needsMediaSync } from '@/domain/media-sync';
+import { followAudioPlayback } from '@/domain/visual-playback';
 import { getResumePosition } from '@/domain/playback-progress';
 import { appPath } from '@/lib/app-path';
 import type { VideoSummary } from '@/protocol/schemas';
@@ -78,7 +78,7 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
       player?.removeEventListener('webkitbeginfullscreen', enterNativeFullscreen);
       player?.removeEventListener('webkitendfullscreen', exitNativeFullscreen);
     };
-  }, []);
+  }, [video.id]);
 
   useEffect(() => {
     if (!shouldKeepScreenAwake) return;
@@ -175,58 +175,7 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
     const audioPlayer = audioRef.current;
     if (!visualPlayer || !audioPlayer) return;
 
-    const syncPosition = (force = false) => {
-      if (force || needsMediaSync(audioPlayer.currentTime, visualPlayer.currentTime)) {
-        try { visualPlayer.currentTime = audioPlayer.currentTime; } catch { /* metadata may still be loading */ }
-      }
-    };
-    const playVisual = () => {
-      if (document.hidden || audioPlayer.paused || audioPlayer.ended) return;
-      syncPosition();
-      if (visualPlayer.paused) void visualPlayer.play().catch(() => undefined);
-    };
-    const pauseVisual = () => {
-      if (!visualPlayer.paused) visualPlayer.pause();
-    };
-    const syncPlayback = () => {
-      if (document.hidden) {
-        pauseVisual();
-        return;
-      }
-      syncPosition();
-      if (visualPlayer.playbackRate !== audioPlayer.playbackRate) {
-        visualPlayer.playbackRate = audioPlayer.playbackRate;
-      }
-      if (audioPlayer.paused || audioPlayer.ended) pauseVisual();
-      else playVisual();
-    };
-    const seekVisual = () => syncPosition(true);
-    const updateRate = () => {
-      visualPlayer.playbackRate = audioPlayer.playbackRate;
-    };
-
-    audioPlayer.addEventListener('play', playVisual);
-    audioPlayer.addEventListener('playing', playVisual);
-    audioPlayer.addEventListener('pause', pauseVisual);
-    audioPlayer.addEventListener('waiting', pauseVisual);
-    audioPlayer.addEventListener('seeking', seekVisual);
-    audioPlayer.addEventListener('seeked', syncPlayback);
-    audioPlayer.addEventListener('ratechange', updateRate);
-    audioPlayer.addEventListener('timeupdate', syncPlayback);
-    audioPlayer.addEventListener('ended', pauseVisual);
-    document.addEventListener('visibilitychange', syncPlayback);
-    return () => {
-      audioPlayer.removeEventListener('play', playVisual);
-      audioPlayer.removeEventListener('playing', playVisual);
-      audioPlayer.removeEventListener('pause', pauseVisual);
-      audioPlayer.removeEventListener('waiting', pauseVisual);
-      audioPlayer.removeEventListener('seeking', seekVisual);
-      audioPlayer.removeEventListener('seeked', syncPlayback);
-      audioPlayer.removeEventListener('ratechange', updateRate);
-      audioPlayer.removeEventListener('timeupdate', syncPlayback);
-      audioPlayer.removeEventListener('ended', pauseVisual);
-      document.removeEventListener('visibilitychange', syncPlayback);
-    };
+    return followAudioPlayback(audioPlayer, visualPlayer, document);
   }, [video.hasBackgroundAudio, video.id]);
 
   useEffect(() => {
@@ -374,6 +323,7 @@ export function VideoPlayer({ video, playerControlRef, onEnded, onNextTrack, aut
   return (
     <div className={`player-shell${video.hasBackgroundAudio ? ' background-audio-player' : ''}${fullscreenMode === 'viewport' ? ' viewport-fullscreen' : ''}`} ref={shellRef}>
       <video
+        key={video.id}
         ref={videoRef}
         src={appPath(`/api/videos/${video.id}/stream`)}
         poster={video.thumbnailUrl ?? undefined}
